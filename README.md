@@ -128,10 +128,21 @@ PORT=2010 npm start
    adb devices                           # should show "device"
    ```
    Use that `IP:port` as `ADB_SERIAL`. The port changes after reboots/toggles.
-4. **Start Shizuku**:
+4. **Start Shizuku** (modern Shizuku has no start.sh — it uses a native starter):
    ```sh
-   adb shell sh /sdcard/Android/data/moe.shizuku.privileged.api/start.sh
+   cat > ~/start-shizuku.sh <<'EOF'
+   #!/data/data/com.termux/files/usr/bin/sh
+   APK_PATH=$(adb shell pm path moe.shizuku.privileged.api | head -1 | sed 's/^package://' | tr -d '\r')
+   [ -z "$APK_PATH" ] && { echo "Shizuku not installed"; exit 1; }
+   APP_DIR=$(dirname "$APK_PATH")
+   SO=$(adb shell "echo $APP_DIR/lib/*/libshizuku.so" | tr -d '\r')
+   echo "Starting Shizuku: $SO"
+   adb shell "$SO"
+   EOF
+   chmod +x ~/start-shizuku.sh
+   ~/start-shizuku.sh
    ```
+   The Shizuku app should now show **"Shizuku is running"**.
    Then verify: `RISH_APPLICATION_ID=com.termux sh ~/rish -c 'id'`
    → should print `uid=2000(shell)`.
 5. In the Shizuku app, enable **"Start on boot"** so it survives reboots.
@@ -167,7 +178,7 @@ sshd
            | grep -oE '([0-9]+\.){3}[0-9]+:[0-9]+' | head -1)
     if [ -n "$ADDR" ]; then
       adb connect "$ADDR"
-      adb shell sh /sdcard/Android/data/moe.shizuku.privileged.api/start.sh
+      sh "$HOME/start-shizuku.sh"
       break
     fi
     sleep 10
