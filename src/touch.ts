@@ -152,7 +152,13 @@ export class TouchController {
 
   private ensureShell(): ChildProcess {
     if (this.shell && this.shell.exitCode === null && !this.shell.killed) return this.shell;
-    this.shell = this.adb.spawnStream(['shell']);
+    // NOTE: stdin MUST be piped - the whole point of this process is writing
+    // sendevent commands into it.
+    this.shell = this.adb.spawnStream(['shell'], true);
+    this.shell.stderr?.on('data', d => {
+      // Surface driver/permission problems instead of failing silently.
+      console.error('[touch-shell]', String(d).trim());
+    });
     this.shell.on('exit', () => {
       this.shell = null;
     });

@@ -79,10 +79,13 @@ export class AdbProvider {
     return this.exec(['install', '-r', apkPath], timeoutMs);
   }
 
-  /** Spawn an adb command with a streaming stdout (used for screenrecord). */
-  spawnStream(args: string[]): ChildProcess {
+  /**
+   * Spawn an adb command with streaming stdout (and optionally a writable
+   * stdin - required for the persistent touch shell).
+   */
+  spawnStream(args: string[], withStdin = false): ChildProcess {
     return spawn(this.bin, [...this.baseArgs(), ...args], {
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: [withStdin ? 'pipe' : 'ignore', 'pipe', 'pipe'],
     });
   }
 
