@@ -179,6 +179,7 @@ input:focus, select:focus { border-color: var(--accent-2); }
   touch-action: none;      /* let us handle swipes ourselves */
   user-select: none;
   cursor: crosshair;
+  object-fit: contain;     /* never distort the picture */
 }
 .nav-bar { flex-wrap: wrap; }
 .nav-btn { min-width: 86px; }

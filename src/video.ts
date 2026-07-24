@@ -98,7 +98,12 @@ export class VideoStreamer {
     }
 
     const dev = await this.displaySize();
-    const { w, h, bitRate } = this.videoParams(dev);
+    const rot = await this.currentRotation();
+    // `wm size` always reports the PHYSICAL (portrait) panel size.
+    // In landscape the video must be encoded with swapped dimensions,
+    // otherwise screenrecord squishes the picture.
+    const oriented = rot === 1 || rot === 3 ? { w: dev.h, h: dev.w } : dev;
+    const { w, h, bitRate } = this.videoParams(oriented);
     this.stopping = false;
 
     const proc = this.adb.spawnStream([
@@ -175,7 +180,7 @@ export class VideoStreamer {
 
     // Fallback info if the stderr banner never arrives.
     setTimeout(() => {
-      if (!infoSent && this.proc === proc) sendInfo(0, 60, dev.w, dev.h);
+      if (!infoSent && this.proc === proc) sendInfo(rot, 60, dev.w, dev.h);
     }, 2000);
   }
 
@@ -191,6 +196,25 @@ export class VideoStreamer {
       // ignore
     }
     return { w: 1080, h: 2400 };
+  }
+
+  /** Current display rotation 0-3 (dumpsys first = actual, settings = fallback). */
+  private async currentRotation(): Promise<number> {
+    try {
+      const r = await this.adb.shell('dumpsys input', 10000);
+      const m = /SurfaceOrientation:\s*(\d)/.exec(r.stdout);
+      if (m) return parseInt(m[1], 10);
+    } catch {
+      // ignore
+    }
+    try {
+      const r = await this.adb.shell('settings get system user_rotation', 8000);
+      const n = parseInt(r.stdout.trim(), 10);
+      if (n >= 0 && n <= 3) return n;
+    } catch {
+      // ignore
+    }
+    return 0;
   }
 
   private videoParams(dev: { w: number; h: number }): { w: number; h: number; bitRate: number } {
