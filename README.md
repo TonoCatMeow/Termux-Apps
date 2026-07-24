@@ -80,11 +80,16 @@ Also: Android Settings → Apps → Termux → Battery → **Unrestricted**.
 
 ### Install rish (Shizuku shell)
 
+rish is NOT downloadable from GitHub anymore — export it from the Shizuku app:
+
+1. Open the Shizuku app → **"Use Shizuku in terminal apps"** → **Export files**
+   → save to Download (Shizuku must be running first, see step 3)
+2. Then in Termux:
+
 ```sh
-cd ~
-curl -LO https://github.com/RikkaApps/Shizuku/raw/master/shell/rish
-curl -LO https://github.com/RikkaApps/Shizuku/raw/master/shell/rish_shizuku.dex
-chmod +x rish
+cp /sdcard/Download/rish /sdcard/Download/rish_shizuku.dex ~/
+chmod +x ~/rish
+head -3 ~/rish    # sanity check: must show shell script, NOT html
 ```
 
 ### Clone + build + run
