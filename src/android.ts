@@ -126,6 +126,21 @@ export class AndroidBridge {
     );
   }
 
+  /**
+   * Cycle the display rotation (0=portrait, 1=90°, 2=180°, 3=270°).
+   * Disables auto-rotate first. Requires adb or Shizuku (WRITE_SETTINGS).
+   */
+  async rotateDisplay(): Promise<{ rotation: number }> {
+    await this.shell('settings put system accelerometer_rotation 0', 10000);
+    const r = await this.shell('settings get system user_rotation', 10000);
+    let cur = parseInt(r.stdout.trim(), 10);
+    if (!Number.isInteger(cur) || cur < 0 || cur > 3) cur = 0;
+    const next = (cur + 1) % 4;
+    const w = await this.shell(`settings put system user_rotation ${next}`, 10000);
+    if (!w.ok) throw new Error(w.stderr.trim() || 'rotation failed (needs adb or Shizuku)');
+    return { rotation: next };
+  }
+
   /** Open a URL in the device's default browser. */
   async openUrl(url: string): Promise<ExecResult> {
     return this.shell(`am start -a android.intent.action.VIEW -d ${shq(url)}`, 15000);

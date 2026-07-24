@@ -94,6 +94,18 @@ app.post(
 );
 
 app.post(
+  '/api/rotate',
+  ah(async (_req, res) => {
+    try {
+      const r = await bridge.rotateDisplay();
+      res.json({ ok: true, rotation: r.rotation });
+    } catch (e: any) {
+      res.status(502).json({ ok: false, error: e.message });
+    }
+  }),
+);
+
+app.post(
   '/api/open-url',
   ah(async (req, res) => {
     const url = String((req.body && req.body.url) || '');

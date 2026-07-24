@@ -86,6 +86,11 @@ export function setupWebSocket(
         handleInput(bridge, msg)
           .then(r => send(ws, { type: 'input-result', ok: r.ok, error: r.ok ? undefined : (r.stderr || 'input failed').trim() }))
           .catch(e => send(ws, { type: 'input-result', ok: false, error: e.message }));
+      } else if (msg.type === 'rotate') {
+        bridge
+          .rotateDisplay()
+          .then(r => send(ws, { type: 'rotate-result', ok: true, rotation: r.rotation }))
+          .catch(e => send(ws, { type: 'rotate-result', ok: false, error: e.message }));
       } else if (msg.type === 'refresh-status') {
         pushStatus().catch(() => undefined);
       } else if (msg.type === 'ping') {

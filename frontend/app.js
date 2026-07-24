@@ -109,6 +109,13 @@ function connectWs() {
       toast(`Video: ${msg.error}`, 'err');
     } else if (msg.type === 'input-result') {
       if (!msg.ok && msg.error) $('#video-status').textContent = `input: ${msg.error}`;
+    } else if (msg.type === 'rotate-result') {
+      if (msg.ok) {
+        const names = ['Portrait', 'Landscape', 'Upside down', 'Landscape (other)'];
+        toast(`Rotated: ${names[msg.rotation] || msg.rotation}`, 'ok');
+      } else {
+        toast(`Rotate failed: ${msg.error}`, 'err');
+      }
     } else if (msg.type === 'status') {
       state.device = msg.data;
       renderDevice(msg.data);
@@ -405,8 +412,19 @@ function toDevice(p) {
 })();
 
 // ---------------------------------------------------------- input: keyboard ---
+// Keyboard is ALWAYS live while the video runs - every keystroke goes
+// straight to the phone (except when typing into one of the panel's own
+// form fields, e.g. the app search box).
 document.addEventListener('keydown', e => {
   if (!state.video.live) return;
+
+  // Esc exits maximize mode instead of sending BACK.
+  if (e.key === 'Escape' && isMaximized()) {
+    toggleMaximize();
+    e.preventDefault();
+    return;
+  }
+
   const tag = ((e.target && e.target.tagName) || '').toLowerCase();
   if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
 
@@ -431,19 +449,27 @@ document.addEventListener('keydown', e => {
   }
 });
 
-document.querySelectorAll('.nav-btn').forEach(btn => {
+document.querySelectorAll('.nav-btn[data-key]').forEach(btn => {
   btn.addEventListener('click', () => sendInput({ action: 'key', key: btn.dataset.key }));
 });
 
-$('#kbd-send').addEventListener('click', () => {
-  const t = $('#kbd-text').value;
-  if (!t) return;
-  sendInput({ action: 'text', text: t });
-  $('#kbd-text').value = '';
+$('#rotate-btn').addEventListener('click', () => {
+  if (!state.wsOk) { toast('WebSocket not connected yet', 'err'); return; }
+  state.ws.send(JSON.stringify({ type: 'rotate' }));
 });
-$('#kbd-text').addEventListener('keydown', e => {
-  if (e.key === 'Enter') $('#kbd-send').click();
-});
+
+// ------------------------------------------------------------ maximize/zoom ---
+function isMaximized() {
+  return document.querySelector('.video-frame').classList.contains('video-max');
+}
+
+function toggleMaximize() {
+  const frame = document.querySelector('.video-frame');
+  frame.classList.toggle('video-max');
+  $('#video-max').textContent = frame.classList.contains('video-max') ? '✕' : '⛶';
+}
+
+$('#video-max').addEventListener('click', toggleMaximize);
 
 $('#screen-single').addEventListener('click', async () => {
   $('#screen-status').textContent = 'capturing…';

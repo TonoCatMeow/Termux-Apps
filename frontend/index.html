@@ -108,9 +108,10 @@
         </div>
         <div class="screen-frame video-frame">
           <video id="video-el" muted autoplay playsinline></video>
+          <button id="video-max" class="btn max-btn" title="Maximize">⛶</button>
           <div id="video-placeholder" class="screen-placeholder">
             Click = tap &nbsp;·&nbsp; drag = swipe &nbsp;·&nbsp; long-press = hold<br/>
-            Type on your keyboard to send text to the phone.<br/>
+            <strong>Keyboard is live while video runs — just type.</strong><br/>
             Requires ADB (screenrecord).
           </div>
         </div>
@@ -118,13 +119,10 @@
           <button class="btn nav-btn" data-key="BACK">◀ Back</button>
           <button class="btn nav-btn" data-key="HOME">● Home</button>
           <button class="btn nav-btn" data-key="RECENTS">■ Recents</button>
+          <button id="rotate-btn" class="btn nav-btn">⟳ Rotate</button>
           <button class="btn nav-btn" data-key="VOLUME_UP">Vol+</button>
           <button class="btn nav-btn" data-key="VOLUME_DOWN">Vol−</button>
           <button class="btn nav-btn" data-key="POWER">⏻ Power</button>
-        </div>
-        <div class="toolbar">
-          <input type="text" id="kbd-text" placeholder="Type text to send to the phone…" />
-          <button id="kbd-send" class="btn">Send text</button>
         </div>
 
         <div class="section-title">Still capture <span class="muted">(works via Shizuku too)</span></div>
