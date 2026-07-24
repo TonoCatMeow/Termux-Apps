@@ -1,13 +1,13 @@
 // Simple local authentication: password login + HMAC-signed session cookie.
 //
-// PANEL_PASSWORD  - login password (default: "pi")
+// PANEL_PASSWORD  - login password (default: "malo")
 // PANEL_SECRET    - HMAC secret; random per process start if unset, which
 //                   simply invalidates all sessions on restart.
 
 import crypto from 'crypto';
 import { NextFunction, Request, Response } from 'express';
 
-const PASSWORD = process.env.PANEL_PASSWORD || 'pi';
+const PASSWORD = process.env.PANEL_PASSWORD || 'malo';
 const SECRET = process.env.PANEL_SECRET || crypto.randomBytes(32).toString('hex');
 const TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 

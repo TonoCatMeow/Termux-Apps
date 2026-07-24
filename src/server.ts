@@ -306,7 +306,7 @@ server.listen(PORT, HOST, () => {
   console.log(`Frontend directory: ${frontendDir}`);
   console.log(`Data directory:     ${dataDir()}`);
   if (!process.env.PANEL_PASSWORD) {
-    console.log('Login password: "pi" (default) - set PANEL_PASSWORD to change it.');
+    console.log('Login password: "malo" (default) - set PANEL_PASSWORD to change it.');
   }
   if (!process.env.ADB_SERIAL) {
     console.log('Hint: set ADB_SERIAL=127.0.0.1:<wireless-debugging-port> to enable adb.');
