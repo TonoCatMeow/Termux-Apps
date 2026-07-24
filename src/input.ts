@@ -82,6 +82,25 @@ export async function inputKey(bridge: AndroidBridge, key: unknown): Promise<Exe
   return bridge.shell(`input keyevent ${code}`, 10000);
 }
 
+/**
+ * Begin a hold: a zero-distance swipe with a long duration keeps the finger
+ * down. Fire-and-forget - it is ended by inputHoldEnd (pkill).
+ */
+export function inputHoldStart(bridge: AndroidBridge, x: unknown, y: unknown): ExecResult {
+  const xi = coord(x);
+  const yi = coord(y);
+  // Runs in the background for up to 60s; killed on release.
+  bridge.shell(`input swipe ${xi} ${yi} ${xi} ${yi} 60000`, 70000).catch(() => undefined);
+  return { ok: true, stdout: '', stderr: '', code: 0 };
+}
+
+/** End a hold: kill the running hold-swipe so the finger lifts. */
+export async function inputHoldEnd(bridge: AndroidBridge): Promise<ExecResult> {
+  // pkill returns non-zero when nothing matched - that's fine.
+  await bridge.shell(`pkill -f 'input swipe' || true`, 8000);
+  return { ok: true, stdout: '', stderr: '', code: 0 };
+}
+
 /** Dispatch an {action, ...} message (shared by the WS handler and REST API). */
 export async function handleInput(bridge: AndroidBridge, msg: any): Promise<ExecResult> {
   switch (msg && msg.action) {
@@ -93,6 +112,10 @@ export async function handleInput(bridge: AndroidBridge, msg: any): Promise<Exec
       return inputText(bridge, msg.text);
     case 'key':
       return inputKey(bridge, msg.key);
+    case 'hold-start':
+      return inputHoldStart(bridge, msg.x, msg.y);
+    case 'hold-end':
+      return inputHoldEnd(bridge);
     default:
       throw new Error(`unknown input action "${msg && msg.action}"`);
   }

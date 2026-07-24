@@ -431,7 +431,16 @@ function toDevice(p) {
 
 (function setupVideoPointer() {
   const el = $('#video-el');
-  let start = null;
+  const SLOP = 0.02;          // normalized movement that counts as a drag
+  const HOLD_MS = 300;        // press-and-stay this long => finger goes DOWN
+  let start = null;           // { p, t }
+  let holdTimer = null;
+  let holding = false;
+
+  function cancelHoldTimer() {
+    if (holdTimer) clearTimeout(holdTimer);
+    holdTimer = null;
+  }
 
   el.addEventListener('pointerdown', e => {
     if (!state.video.live) return;
@@ -439,25 +448,45 @@ function toDevice(p) {
     const p = relPoint(e, el);
     if (!p) { start = null; return; }   // touched a letterbox bar
     start = { p, t: Date.now() };
+    holding = false;
     try { el.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+
+    // If the finger stays put, press DOWN on the device and keep holding
+    // until pointerup - a real hold, not a post-hoc long swipe.
+    holdTimer = setTimeout(() => {
+      if (!start) return;
+      holding = true;
+      const a = toDevice(start.p);
+      sendInput({ action: 'hold-start', x: a.x, y: a.y });
+    }, HOLD_MS);
+  });
+
+  el.addEventListener('pointermove', e => {
+    if (!start || holding) return;
+    const cur = relPoint(e, el);
+    if (cur && Math.hypot(cur.x - start.p.x, cur.y - start.p.y) > SLOP) {
+      cancelHoldTimer();   // it's a swipe, not a hold
+    }
   });
 
   el.addEventListener('pointerup', e => {
-    if (!start || !state.video.live) return;
+    cancelHoldTimer();
+    if (!start || !state.video.live) { holding = false; return; }
     e.preventDefault();
-    const end = relPoint(e, el);
-    if (!end) { start = null; return; }
-    const dt = Date.now() - start.t;
+
+    if (holding) {
+      holding = false;
+      start = null;
+      sendInput({ action: 'hold-end' });   // lift the finger
+      return;
+    }
+
+    const end = relPoint(e, el) || start.p;
     const dist = Math.hypot(end.x - start.p.x, end.y - start.p.y);
     const a = toDevice(start.p);
 
-    if (dist < 0.02) {
-      if (dt > 500) {
-        // long press = swipe to the same point with a duration
-        sendInput({ action: 'swipe', x1: a.x, y1: a.y, x2: a.x, y2: a.y, duration: dt });
-      } else {
-        sendInput({ action: 'tap', x: a.x, y: a.y });
-      }
+    if (dist < SLOP) {
+      sendInput({ action: 'tap', x: a.x, y: a.y });
     } else {
       const b = toDevice(end);
       // Fixed short duration = fast fling. Using the real drag time makes
@@ -467,7 +496,14 @@ function toDevice(p) {
     start = null;
   });
 
-  el.addEventListener('pointercancel', () => { start = null; });
+  el.addEventListener('pointercancel', () => {
+    cancelHoldTimer();
+    if (holding) {
+      holding = false;
+      sendInput({ action: 'hold-end' });
+    }
+    start = null;
+  });
   el.addEventListener('contextmenu', e => e.preventDefault());
 })();
 
