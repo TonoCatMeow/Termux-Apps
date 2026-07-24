@@ -353,12 +353,33 @@ function sendInput(msg) {
   state.ws.send(JSON.stringify({ type: 'input', ...msg }));
 }
 
+// Map a pointer event to normalized coordinates over the ACTUAL video
+// picture. In maximize mode the <video> element fills the window and the
+// picture is letterboxed inside it (object-fit: contain), so we must use
+// the rendered content rect - not the element rect - and ignore clicks
+// that land on the black bars.
 function relPoint(e, el) {
   const r = el.getBoundingClientRect();
-  return {
-    x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)),
-    y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)),
-  };
+  const vw = el.videoWidth || 0;
+  const vh = el.videoHeight || 0;
+  const clamp01 = v => Math.min(1, Math.max(0, v));
+
+  if (!vw || !vh) {
+    return { x: clamp01((e.clientX - r.left) / r.width), y: clamp01((e.clientY - r.top) / r.height) };
+  }
+
+  const elAspect = r.width / r.height;
+  const vidAspect = vw / vh;
+  let w, h;
+  if (elAspect > vidAspect) { h = r.height; w = h * vidAspect; }
+  else { w = r.width; h = w / vidAspect; }
+  const left = r.left + (r.width - w) / 2;
+  const top = r.top + (r.height - h) / 2;
+
+  const x = (e.clientX - left) / w;
+  const y = (e.clientY - top) / h;
+  if (x < 0 || x > 1 || y < 0 || y > 1) return null; // black bar - not the screen
+  return { x, y };
 }
 
 function toDevice(p) {
@@ -380,7 +401,9 @@ function toDevice(p) {
   el.addEventListener('pointerdown', e => {
     if (!state.video.live) return;
     e.preventDefault();
-    start = { p: relPoint(e, el), t: Date.now() };
+    const p = relPoint(e, el);
+    if (!p) { start = null; return; }   // touched a letterbox bar
+    start = { p, t: Date.now() };
     try { el.setPointerCapture(e.pointerId); } catch { /* ignore */ }
   });
 
@@ -388,6 +411,7 @@ function toDevice(p) {
     if (!start || !state.video.live) return;
     e.preventDefault();
     const end = relPoint(e, el);
+    if (!end) { start = null; return; }
     const dt = Date.now() - start.t;
     const dist = Math.hypot(end.x - start.p.x, end.y - start.p.y);
     const a = toDevice(start.p);
