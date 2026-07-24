@@ -34,6 +34,8 @@ export class VideoStreamer {
   private viewers = new Map<WebSocket, Notify>();
   private stopping = false;
   private restarting: NodeJS.Timeout | null = null;
+  private rotationWatcher: NodeJS.Timeout | null = null;
+  private streamRotation = 0;
   private failCount = 0;
   private preset = 'medium';
   private info: VideoInfo | null = null;
@@ -76,16 +78,45 @@ export class VideoStreamer {
       clearTimeout(this.restarting);
       this.restarting = null;
     }
-    if (this.proc) {
+    if (this.rotationWatcher) {
+      clearInterval(this.rotationWatcher);
+      this.rotationWatcher = null;
+    }
+    // Detach the handle BEFORE killing, so the old process's exit handler
+    // (which checks this.proc !== proc) doesn't disturb a fresh stream.
+    const p = this.proc;
+    this.proc = null;
+    if (p) {
       try {
-        this.proc.kill('SIGKILL');
+        p.kill('SIGKILL');
       } catch {
         // ignore
       }
-      this.proc = null;
     }
     this.info = null;
     this.stopping = false;
+  }
+
+  /**
+   * screenrecord does NOT exit when the display rotates - it keeps encoding
+   * with the original dimensions. Poll the actual rotation and restart the
+   * encoder when it changes so the video aspect follows the phone.
+   */
+  private startRotationWatcher(): void {
+    if (this.rotationWatcher) return;
+    this.rotationWatcher = setInterval(async () => {
+      if (!this.proc || this.viewers.size === 0) return;
+      try {
+        const rot = await this.currentRotation();
+        if (rot !== this.streamRotation) {
+          this.streamRotation = rot;
+          this.broadcastMsg({ type: 'video-reset' });
+          this.restart();
+        }
+      } catch {
+        // ignore - keep watching
+      }
+    }, 2000);
   }
 
   private async start(): Promise<void> {
@@ -105,6 +136,7 @@ export class VideoStreamer {
     const oriented = rot === 1 || rot === 3 ? { w: dev.h, h: dev.w } : dev;
     const { w, h, bitRate } = this.videoParams(oriented);
     this.stopping = false;
+    this.streamRotation = rot;
 
     const proc = this.adb.spawnStream([
       'exec-out',
@@ -117,6 +149,7 @@ export class VideoStreamer {
       '-',
     ]);
     this.proc = proc;
+    this.startRotationWatcher();
 
     const startedAt = Date.now();
     let stderrBuf = '';
@@ -156,6 +189,7 @@ export class VideoStreamer {
     });
 
     proc.on('exit', code => {
+      if (this.proc !== proc) return; // already replaced by a newer stream
       this.proc = null;
       if (this.stopping || this.viewers.size === 0) return;
       if (Date.now() - startedAt < 3000) {
@@ -198,11 +232,18 @@ export class VideoStreamer {
     return { w: 1080, h: 2400 };
   }
 
-  /** Current display rotation 0-3 (dumpsys first = actual, settings = fallback). */
+  /** Current display rotation 0-3 (dumpsys = actual state, settings = fallback). */
   private async currentRotation(): Promise<number> {
     try {
       const r = await this.adb.shell('dumpsys input', 10000);
       const m = /SurfaceOrientation:\s*(\d)/.exec(r.stdout);
+      if (m) return parseInt(m[1], 10);
+    } catch {
+      // ignore
+    }
+    try {
+      const r = await this.adb.shell('dumpsys display', 10000);
+      const m = /mCurrentOrientation=(\d)/.exec(r.stdout) || /mRotation=(\d)/.exec(r.stdout);
       if (m) return parseInt(m[1], 10);
     } catch {
       // ignore
