@@ -364,14 +364,13 @@ function relPoint(e, el) {
 function toDevice(p) {
   const info = state.video.info;
   if (!info) return { x: Math.round(p.x * 1080), y: Math.round(p.y * 2400) };
-  const W = info.deviceWidth, H = info.deviceHeight;
-  const o = info.orientation || 0;
-  let x, y;
-  if (o === 0)      { x = p.x * W;       y = p.y * H; }
-  else if (o === 90)  { x = p.y * W;     y = (1 - p.x) * H; }
-  else if (o === 180) { x = (1 - p.x) * W; y = (1 - p.y) * H; }
-  else              { x = (1 - p.y) * W; y = p.x * H; }
-  return { x: Math.round(x), y: Math.round(y) };
+  // `input tap/swipe` uses the CURRENT (rotated) display coordinate space,
+  // and the video shows exactly that same frame - so just scale to the
+  // current display size (swapped in landscape). No rotation math needed.
+  const landscape = (info.orientation || 0) === 1 || info.orientation === 3;
+  const W = landscape ? info.deviceHeight : info.deviceWidth;
+  const H = landscape ? info.deviceWidth : info.deviceHeight;
+  return { x: Math.round(p.x * W), y: Math.round(p.y * H) };
 }
 
 (function setupVideoPointer() {
