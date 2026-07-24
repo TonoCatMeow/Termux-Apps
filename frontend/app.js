@@ -39,12 +39,7 @@ function toast(msg, kind = '') {
 }
 
 async function api(path, opts = {}) {
-  const res = await fetch(path, { credentials: 'same-origin', ...opts });
-  if (res.status === 401) {
-    showLogin();
-    throw new Error('unauthorized');
-  }
-  return res;
+  return fetch(path, { credentials: 'same-origin', ...opts });
 }
 
 async function apiJson(path, opts = {}) {
@@ -56,40 +51,6 @@ async function apiJson(path, opts = {}) {
   if (!res.ok) throw new Error(body.error || body.detail || `HTTP ${res.status}`);
   return body;
 }
-
-// ------------------------------------------------------------------ auth ---
-function showLogin() {
-  $('#app-view').classList.add('hidden');
-  $('#login-view').classList.remove('hidden');
-}
-
-function showApp() {
-  $('#login-view').classList.add('hidden');
-  $('#app-view').classList.remove('hidden');
-  initApp();
-}
-
-$('#login-form').addEventListener('submit', async e => {
-  e.preventDefault();
-  $('#login-error').textContent = '';
-  try {
-    await apiJson('/api/login', {
-      method: 'POST',
-      body: JSON.stringify({ password: $('#login-password').value }),
-    });
-    $('#login-password').value = '';
-    showApp();
-  } catch (err) {
-    $('#login-error').textContent = err.message || 'Login failed';
-  }
-});
-
-$('#logout-btn').addEventListener('click', async () => {
-  try { await apiJson('/api/logout', { method: 'POST' }); } catch { /* ignore */ }
-  if (state.ws) { try { state.ws.close(); } catch { /* ignore */ } }
-  stopScreen();
-  showLogin();
-});
 
 // -------------------------------------------------------------- websocket ---
 function setConn(ok, text) {
@@ -137,13 +98,10 @@ function connectWs() {
     }
   };
 
-  ws.onclose = ev => {
+  ws.onclose = () => {
     state.wsOk = false;
-    setConn(false, ev.code === 4401 ? 'unauthorized' : 'reconnecting…');
-    if (ev.code === 4401) { showLogin(); return; }
-    setTimeout(() => {
-      if (!$('#app-view').classList.contains('hidden')) connectWs();
-    }, 3000);
+    setConn(false, 'reconnecting…');
+    setTimeout(connectWs, 3000);
   };
 
   ws.onerror = () => { /* onclose handles retry */ };
@@ -503,23 +461,8 @@ async function loadBridges() {
 }
 
 // ------------------------------------------------------------------- init ---
-let appInitialized = false;
-function initApp() {
-  if (appInitialized) return;
-  appInitialized = true;
-  connectWs();
-  loadDeviceOnce();
-  loadApps(false);
-  // Fallback refresh in case websocket pushes are unavailable.
-  setInterval(() => { if (!state.wsOk) loadDeviceOnce(); }, 10000);
-}
-
-(async function boot() {
-  try {
-    const me = await apiJson('/api/me');
-    if (me.authenticated) showApp();
-    else showLogin();
-  } catch {
-    showLogin();
-  }
-})();
+connectWs();
+loadDeviceOnce();
+loadApps(false);
+// Fallback refresh in case websocket pushes are unavailable.
+setInterval(() => { if (!state.wsOk) loadDeviceOnce(); }, 10000);

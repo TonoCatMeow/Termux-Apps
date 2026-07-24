@@ -13,7 +13,7 @@ Node.js Web Panel (0.0.0.0:2010)        <- inside Debian proot-distro
    v
 Android Bridge layer (android.ts)
    |
-   +--> Termux bridge (termux-bridge.js, localhost:17845, token-protected)
+   +--> Termux bridge (termux-bridge.js, localhost:17845, localhost-only)
    |       +--> Termux:API  (battery, notifications, ...)
    |       +--> am / pm / getprop / monkey (as the Termux app uid)
    |       +--> adb    (android-tools in Termux)
@@ -29,7 +29,7 @@ Android Framework -> Installed Apps
 
 **Why the bridge?** Debian proot-distro shares the Android kernel but does NOT
 see Termux's filesystem or Android binaries. Loopback networking *is* shared,
-so a tiny token-protected daemon in Termux (`bridge/termux-bridge.js`) executes
+so a tiny localhost-only daemon in Termux (`bridge/termux-bridge.js`) executes
 whitelisted Android commands on behalf of the Debian backend. No feature is
 silently dropped: if a transport is missing, the API tells you exactly which
 one to set up.
@@ -49,8 +49,8 @@ one to set up.
 - **APK manager** – upload APK, install via adb / Shizuku / system installer.
 - **System actions** – launch apps, open URLs (`POST /api/open-url`), battery,
   device info, screenshots.
-- **Auth** – password login, HMAC session cookie (12 h). Password via
-  `PANEL_PASSWORD` (default: `admin` — change it).
+- **No auth** – open local dashboard. Anyone on your Wi-Fi can reach it;
+  use only on networks you trust.
 
 ## Limitations (no root)
 
@@ -101,8 +101,6 @@ Copy `bridge/termux-bridge.js` into Termux home (e.g. via `scp`, shared
 storage, or paste it). Then:
 
 ```sh
-# pick ONE secret token and use it on both sides
-export BRIDGE_TOKEN='my-secret-token'
 nohup node ~/termux-bridge.js > ~/bridge.log 2>&1 &
 ```
 
@@ -138,9 +136,7 @@ Install, build, start (Node.js/npm already exist inside Debian):
 npm install
 npm run build
 
-export PANEL_PASSWORD='choose-a-strong-password'
-export TERMUX_BRIDGE_TOKEN='my-secret-token'   # SAME as BRIDGE_TOKEN in Termux
-export ADB_SERIAL='127.0.0.1:39001'            # your wireless debugging IP:port (optional but recommended)
+export ADB_SERIAL='127.0.0.1:39001'   # your wireless debugging IP:port (optional but recommended)
 
 PORT=2010 npm start
 ```
@@ -150,9 +146,6 @@ PORT=2010 npm start
 | Variable | Default | Purpose |
 |---|---|---|
 | `PORT` | `2010` | HTTP port (bound to `0.0.0.0`) |
-| `PANEL_PASSWORD` | `admin` | Dashboard login password |
-| `PANEL_SECRET` | random | Session signing secret (random = logout on restart) |
-| `TERMUX_BRIDGE_TOKEN` | `change-me` | Must match `BRIDGE_TOKEN` in Termux |
 | `TERMUX_BRIDGE_URL` | `http://127.0.0.1:17845` | Bridge endpoint |
 | `TERMUX_SSH_CMD` | – | Optional SSH fallback transport |
 | `ADB_SERIAL` | – | e.g. `127.0.0.1:39001` (wireless debugging) |
@@ -202,7 +195,7 @@ From any device on the same Wi-Fi, open:
 http://PHONE_IP:2010
 ```
 
-Log in with `PANEL_PASSWORD`.
+No login required — the dashboard opens directly.
 
 ---
 
@@ -210,8 +203,7 @@ Log in with `PANEL_PASSWORD`.
 
 **Termux bridge unavailable (`termux: down` on the Bridges tab)**
 - Check it's running in Termux: `ps aux | grep termux-bridge` / read `~/bridge.log`.
-- Tokens must match: `BRIDGE_TOKEN` (Termux) == `TERMUX_BRIDGE_TOKEN` (Debian).
-- Test from Debian: `curl -H "x-bridge-token: TOKEN" http://127.0.0.1:17845/health`.
+- Test from Debian: `curl http://127.0.0.1:17845/health`.
 - Fallback: set `TERMUX_SSH_CMD` to use Termux's sshd instead.
 
 **ADB unavailable**
@@ -254,16 +246,12 @@ Log in with `PANEL_PASSWORD`.
   If the distro was started with network isolation (rare), disable it.
 - Confirm `node` exists in Termux (`pkg install nodejs`).
 
-**Sessions keep logging out**
-- `PANEL_SECRET` is random per start; set it to a fixed value to persist
-  sessions across restarts.
-
 ---
 
 # SECURITY NOTES
 
-- The dashboard is password protected, but traffic is plain HTTP — use only on
-  trusted local networks.
-- The Termux bridge executes whitelisted shell commands for anyone holding the
-  token. It binds localhost only; keep the token secret.
-- Change the default password (`PANEL_PASSWORD`) and default bridge token.
+- **There is no authentication.** Anyone on your local network who can reach
+  `PHONE_IP:2010` gets full control of the dashboard. Use only on networks
+  you trust.
+- The Termux bridge executes whitelisted shell commands; it binds localhost
+  only, so it cannot be reached from the network directly.

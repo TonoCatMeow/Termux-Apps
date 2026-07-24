@@ -2,8 +2,8 @@
 //
 // Debian proot-distro shares the Android kernel with Termux but does NOT see
 // Termux's filesystem or Android binaries. A tiny bridge daemon
-// (bridge/termux-bridge.js) runs inside Termux and exposes a token-protected,
-// localhost-only HTTP API that executes whitelisted commands on the Android
+// (bridge/termux-bridge.js) runs inside Termux and exposes a localhost-only
+// HTTP API that executes whitelisted commands on the Android
 // host side (termux-api, am, pm, adb, rish, ...).
 //
 // Because proot does not create a new network namespace, 127.0.0.1 inside
@@ -25,13 +25,11 @@ export function shq(s: string): string {
 
 export class TermuxBridge {
   private url: string;
-  private token: string;
   private sshCmd: string | null;
   private lastOk = 0;
 
   constructor() {
     this.url = (process.env.TERMUX_BRIDGE_URL || 'http://127.0.0.1:17845').replace(/\/+$/, '');
-    this.token = process.env.TERMUX_BRIDGE_TOKEN || 'change-me';
     this.sshCmd = process.env.TERMUX_SSH_CMD || null;
   }
 
@@ -121,7 +119,6 @@ export class TermuxBridge {
           path: u.pathname,
           method,
           headers: {
-            'x-bridge-token': this.token,
             ...(data
               ? { 'Content-Type': 'application/json', 'Content-Length': data.length }
               : {}),

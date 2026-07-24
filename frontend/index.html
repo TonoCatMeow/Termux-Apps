@@ -8,20 +8,8 @@
 </head>
 <body>
 
-  <!-- ============================ LOGIN ============================ -->
-  <div id="login-view" class="login-view hidden">
-    <form id="login-form" class="login-card">
-      <div class="login-logo">📱</div>
-      <h1>Android Control Panel</h1>
-      <p class="muted">Local device dashboard</p>
-      <input type="password" id="login-password" placeholder="Password" autocomplete="current-password" required />
-      <button type="submit" class="btn btn-primary btn-block">Sign in</button>
-      <div id="login-error" class="login-error"></div>
-    </form>
-  </div>
-
   <!-- ============================= APP ============================= -->
-  <div id="app-view" class="app-view hidden">
+  <div id="app-view" class="app-view">
 
     <header class="topbar">
       <div class="topbar-title">
@@ -33,7 +21,6 @@
           <span id="conn-dot" class="dot dot-red"></span>
           <span id="conn-text">disconnected</span>
         </span>
-        <button id="logout-btn" class="btn btn-ghost">Logout</button>
       </div>
     </header>
 
@@ -197,7 +184,7 @@
           <p class="note">
             The backend runs in Debian proot-distro, which cannot call Android
             commands directly. It talks to a small bridge daemon in Termux
-            (localhost, token-protected). Commands are tried in order:
+            (localhost only). Commands are tried in order:
             <strong>ADB → Shizuku (rish) → Termux API</strong>.
             See README.md for setup and troubleshooting.
           </p>

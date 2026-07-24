@@ -5,7 +5,6 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { AndroidBridge } from './android';
 import { getDeviceInfo } from './device';
 import { captureScreenshot } from './screenshot';
-import { parseCookieHeader, verifyToken, SESSION_COOKIE } from './auth';
 
 function send(ws: WebSocket, msg: object): void {
   if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
@@ -15,14 +14,7 @@ export function setupWebSocket(server: http.Server, bridge: AndroidBridge): WebS
   const wss = new WebSocketServer({ server, path: '/ws' });
   const clients = new Set<WebSocket>();
 
-  wss.on('connection', (ws, req) => {
-    // Same-origin cookies are sent with the WS handshake - reuse the session.
-    const cookies = parseCookieHeader(typeof req.headers.cookie === 'string' ? req.headers.cookie : null);
-    if (!verifyToken(cookies[SESSION_COOKIE])) {
-      ws.close(4401, 'unauthorized');
-      return;
-    }
-
+  wss.on('connection', ws => {
     clients.add(ws);
     let screenTimer: NodeJS.Timeout | null = null;
 

@@ -7,13 +7,13 @@
  * is shared between Termux and proot) and executes whitelisted Android /
  * Termux commands on behalf of the Debian backend.
  *
- * Security: localhost-only + shared token. Keep BRIDGE_TOKEN secret.
+ * Security: localhost-only (not reachable from the network).
  *
  * Setup (in Termux):
  *   pkg install nodejs
- *   BRIDGE_TOKEN=<same-as-backend> node termux-bridge.js
+ *   node termux-bridge.js
  *   # or in background:
- *   BRIDGE_TOKEN=... nohup node termux-bridge.js > bridge.log 2>&1 &
+ *   nohup node termux-bridge.js > bridge.log 2>&1 &
  *
  * Endpoints:
  *   GET  /health                         -> { ok: true }
@@ -30,7 +30,6 @@ const path = require('path');
 
 const PORT = parseInt(process.env.BRIDGE_PORT || '17845', 10);
 const HOST = '127.0.0.1';
-const TOKEN = process.env.BRIDGE_TOKEN || 'change-me';
 const MAX_BUFFER = 64 * 1024 * 1024;
 const MAX_BODY = 1024 * 1024 * 1024; // 1 GiB (APK pushes)
 
@@ -109,10 +108,6 @@ function readBody(req, limit, cb) {
 }
 
 const server = http.createServer((req, res) => {
-  if (req.headers['x-bridge-token'] !== TOKEN) {
-    return sendJson(res, 403, { ok: false, error: 'invalid bridge token' });
-  }
-
   if (req.method === 'GET' && req.url === '/health') {
     return sendJson(res, 200, {
       ok: true,
@@ -180,9 +175,6 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`[termux-bridge] listening on http://${HOST}:${PORT}`);
+  console.log(`[termux-bridge] listening on http://${HOST}:${PORT} (localhost only)`);
   console.log(`[termux-bridge] shell: ${SHELL}`);
-  if (TOKEN === 'change-me') {
-    console.log('[termux-bridge] WARNING: default token in use - set BRIDGE_TOKEN and TERMUX_BRIDGE_TOKEN to the same secret!');
-  }
 });

@@ -56,30 +56,6 @@ input[type="text"], input[type="password"], input[type="search"], select {
 }
 input:focus, select:focus { border-color: var(--accent-2); }
 
-/* -------------------------------- login -------------------------------- */
-.login-view {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-.login-card {
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 36px 32px;
-  width: 100%;
-  max-width: 360px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  text-align: center;
-}
-.login-logo { font-size: 44px; }
-.login-card h1 { font-size: 20px; }
-.login-error { color: var(--danger); min-height: 18px; font-size: 13px; }
-
 /* -------------------------------- layout ------------------------------- */
 .app-view { min-height: 100vh; display: flex; flex-direction: column; }
 
