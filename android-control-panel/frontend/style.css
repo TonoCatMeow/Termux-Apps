@@ -1,0 +1,272 @@
+/* Android Control Panel - dark dashboard theme */
+
+:root {
+  --bg: #0d1117;
+  --bg-2: #161b22;
+  --bg-3: #1c2330;
+  --border: #2d333f;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #3fb950;
+  --accent-2: #58a6ff;
+  --danger: #f85149;
+  --warning: #d29922;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+}
+
+.hidden { display: none !important; }
+.muted { color: var(--muted); font-weight: 400; }
+
+/* ------------------------------- buttons ------------------------------- */
+.btn {
+  background: var(--bg-3);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.btn:hover { border-color: var(--muted); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #06130a; font-weight: 600; }
+.btn-primary:hover { filter: brightness(1.1); }
+.btn-ghost { background: transparent; }
+.btn-block { width: 100%; }
+
+input[type="text"], input[type="password"], input[type="search"], select {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 14px;
+  outline: none;
+}
+input:focus, select:focus { border-color: var(--accent-2); }
+
+/* -------------------------------- login -------------------------------- */
+.login-view {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.login-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 36px 32px;
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-align: center;
+}
+.login-logo { font-size: 44px; }
+.login-card h1 { font-size: 20px; }
+.login-error { color: var(--danger); min-height: 18px; font-size: 13px; }
+
+/* -------------------------------- layout ------------------------------- */
+.app-view { min-height: 100vh; display: flex; flex-direction: column; }
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.topbar-title { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+.logo { font-size: 20px; }
+.topbar-right { display: flex; align-items: center; gap: 14px; }
+
+.conn-status { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.dot-green { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+.dot-red { background: var(--danger); }
+.dot-yellow { background: var(--warning); }
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 16px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+.tab {
+  background: none;
+  border: none;
+  color: var(--muted);
+  padding: 12px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+
+.content { padding: 20px; flex: 1; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* --------------------------------- cards ------------------------------- */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+.card.wide { margin-top: 6px; }
+.card-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); margin-bottom: 8px; }
+.card-value { font-size: 20px; font-weight: 700; word-break: break-word; }
+.card-sub { font-size: 13px; color: var(--muted); margin-top: 6px; }
+
+.progress { height: 6px; background: var(--bg-3); border-radius: 4px; margin-top: 10px; overflow: hidden; }
+.progress-bar { height: 100%; width: 0; background: var(--accent); border-radius: 4px; transition: width 0.6s; }
+
+.row { display: flex; gap: 10px; align-items: center; }
+.row input[type="text"] { flex: 1; }
+
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.chip.ok { color: var(--accent); border-color: var(--accent); }
+.chip.bad { color: var(--danger); border-color: var(--danger); }
+
+/* -------------------------------- toolbar ------------------------------ */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.toolbar input[type="search"] { flex: 1; min-width: 180px; }
+
+/* -------------------------------- screen ------------------------------- */
+.screen-frame {
+  position: relative;
+  background: #000;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  min-height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+#screen-img { max-width: 100%; max-height: 78vh; display: none; }
+.screen-placeholder { color: var(--muted); text-align: center; line-height: 1.6; padding: 40px; }
+
+/* --------------------------------- apps -------------------------------- */
+.app-list { display: flex; flex-direction: column; gap: 8px; }
+.app-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+.app-icon {
+  width: 38px; height: 38px;
+  border-radius: 9px;
+  background: var(--bg-3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; flex-shrink: 0;
+}
+.app-meta { flex: 1; min-width: 0; }
+.app-name { font-weight: 600; }
+.app-pkg { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-badge { font-size: 10px; color: var(--warning); border: 1px solid var(--warning); border-radius: 10px; padding: 1px 7px; margin-left: 8px; }
+
+/* --------------------------------- files ------------------------------- */
+.path-display {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 13px;
+  color: var(--accent-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 40vw;
+}
+.files-table { width: 100%; border-collapse: collapse; }
+.files-table th, .files-table td {
+  text-align: left;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+.files-table th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+.files-table tr:hover td { background: var(--bg-2); }
+.file-name { cursor: pointer; }
+.file-name.dir { color: var(--accent-2); font-weight: 600; }
+
+/* --------------------------------- misc -------------------------------- */
+.error-box {
+  background: rgba(248, 81, 73, 0.12);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  word-break: break-word;
+}
+.note { color: var(--muted); font-size: 13px; line-height: 1.6; margin-top: 12px; }
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 20px;
+  font-size: 14px;
+  z-index: 100;
+  max-width: 90vw;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+}
+.toast.ok { border-color: var(--accent); }
+.toast.err { border-color: var(--danger); }
+
+@media (max-width: 640px) {
+  .content { padding: 12px; }
+  .card-value { font-size: 17px; }
+  .topbar { padding: 10px 12px; }
+}

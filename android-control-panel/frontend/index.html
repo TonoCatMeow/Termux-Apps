@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Android Control Panel</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ============================ LOGIN ============================ -->
+  <div id="login-view" class="login-view hidden">
+    <form id="login-form" class="login-card">
+      <div class="login-logo">📱</div>
+      <h1>Android Control Panel</h1>
+      <p class="muted">Local device dashboard</p>
+      <input type="password" id="login-password" placeholder="Password" autocomplete="current-password" required />
+      <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+      <div id="login-error" class="login-error"></div>
+    </form>
+  </div>
+
+  <!-- ============================= APP ============================= -->
+  <div id="app-view" class="app-view hidden">
+
+    <header class="topbar">
+      <div class="topbar-title">
+        <span class="logo">📱</span>
+        <span>Android Control Panel</span>
+      </div>
+      <div class="topbar-right">
+        <span id="conn-status" class="conn-status">
+          <span id="conn-dot" class="dot dot-red"></span>
+          <span id="conn-text">disconnected</span>
+        </span>
+        <button id="logout-btn" class="btn btn-ghost">Logout</button>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="dashboard">Dashboard</button>
+      <button class="tab" data-tab="screen">Screen</button>
+      <button class="tab" data-tab="apps">Apps</button>
+      <button class="tab" data-tab="files">Files</button>
+      <button class="tab" data-tab="apk">APK Install</button>
+      <button class="tab" data-tab="bridges">Bridges</button>
+    </nav>
+
+    <main class="content">
+
+      <!-- ========================= DASHBOARD ========================= -->
+      <section id="tab-dashboard" class="tab-panel active">
+        <div class="card-grid">
+          <div class="card">
+            <div class="card-label">Device</div>
+            <div class="card-value" id="d-model">—</div>
+            <div class="card-sub" id="d-manufacturer">—</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Android</div>
+            <div class="card-value" id="d-android">—</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Battery</div>
+            <div class="card-value" id="d-battery">—</div>
+            <div class="progress"><div id="d-battery-bar" class="progress-bar"></div></div>
+            <div class="card-sub" id="d-charging">—</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Storage <span class="muted" id="d-storage-path"></span></div>
+            <div class="card-value" id="d-storage">—</div>
+            <div class="progress"><div id="d-storage-bar" class="progress-bar"></div></div>
+            <div class="card-sub" id="d-storage-free">—</div>
+          </div>
+          <div class="card">
+            <div class="card-label">RAM</div>
+            <div class="card-value" id="d-ram">—</div>
+            <div class="progress"><div id="d-ram-bar" class="progress-bar"></div></div>
+            <div class="card-sub" id="d-ram-free">—</div>
+          </div>
+          <div class="card">
+            <div class="card-label">CPU</div>
+            <div class="card-value" id="d-cpu">—</div>
+            <div class="card-sub" id="d-cores">—</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Local IP</div>
+            <div class="card-value" id="d-ip">—</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Bridges</div>
+            <div class="chip-row" id="d-bridges">
+              <span class="chip">—</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card wide">
+          <div class="card-label">Open URL on device</div>
+          <div class="row">
+            <input type="text" id="open-url-input" placeholder="https://example.com" />
+            <button id="open-url-btn" class="btn btn-primary">Open</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- =========================== SCREEN ========================== -->
+      <section id="tab-screen" class="tab-panel">
+        <div class="toolbar">
+          <button id="screen-start" class="btn btn-primary">Start live view</button>
+          <button id="screen-stop" class="btn" disabled>Stop</button>
+          <label class="muted">FPS
+            <select id="screen-fps">
+              <option value="0.5">0.5</option>
+              <option value="1" selected>1</option>
+              <option value="2">2</option>
+              <option value="4">4</option>
+            </select>
+          </label>
+          <button id="screen-single" class="btn">Single shot</button>
+          <span id="screen-status" class="muted"></span>
+        </div>
+        <div class="screen-frame">
+          <img id="screen-img" alt="Device screen" />
+          <div id="screen-placeholder" class="screen-placeholder">Screen preview appears here.<br/>Requires ADB or Shizuku.</div>
+        </div>
+      </section>
+
+      <!-- ============================ APPS =========================== -->
+      <section id="tab-apps" class="tab-panel">
+        <div class="toolbar">
+          <input type="search" id="apps-search" placeholder="Search apps…" />
+          <label class="muted"><input type="checkbox" id="apps-show-system" /> show system apps</label>
+          <button id="apps-refresh" class="btn">Refresh</button>
+          <span id="apps-count" class="muted"></span>
+        </div>
+        <div id="apps-error" class="error-box hidden"></div>
+        <div id="apps-list" class="app-list"></div>
+      </section>
+
+      <!-- ============================ FILES ========================== -->
+      <section id="tab-files" class="tab-panel">
+        <div class="toolbar">
+          <select id="files-root"></select>
+          <span id="files-path" class="path-display">/</span>
+          <button id="files-up" class="btn">⬆ Up</button>
+          <input type="file" id="files-upload-input" class="hidden" />
+          <button id="files-upload-btn" class="btn">Upload here</button>
+        </div>
+        <div id="files-error" class="error-box hidden"></div>
+        <table class="files-table">
+          <thead>
+            <tr><th>Name</th><th>Size</th><th>Modified</th><th></th></tr>
+          </thead>
+          <tbody id="files-list"></tbody>
+        </table>
+      </section>
+
+      <!-- ============================= APK =========================== -->
+      <section id="tab-apk" class="tab-panel">
+        <div class="card wide">
+          <div class="card-label">Install APK</div>
+          <div class="row">
+            <input type="file" id="apk-input" accept=".apk,application/vnd.android.package-archive" />
+            <button id="apk-install" class="btn btn-primary">Upload &amp; Install</button>
+          </div>
+          <div id="apk-status" class="muted"></div>
+          <p class="note">
+            Without ADB or Shizuku, Android will open the system installer and you must
+            confirm the installation on the phone screen. Silent installs are not
+            possible without shell/root privileges.
+          </p>
+        </div>
+      </section>
+
+      <!-- =========================== BRIDGES ========================= -->
+      <section id="tab-bridges" class="tab-panel">
+        <div class="card-grid">
+          <div class="card">
+            <div class="card-label">Termux bridge</div>
+            <div class="card-value" id="b-termux">—</div>
+            <div class="card-sub">node termux-bridge.js inside Termux (port 17845)</div>
+          </div>
+          <div class="card">
+            <div class="card-label">ADB</div>
+            <div class="card-value" id="b-adb">—</div>
+            <div class="card-sub">Wireless debugging + ADB_SERIAL env</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Shizuku</div>
+            <div class="card-value" id="b-shizuku">—</div>
+            <div class="card-sub">rish in Termux home</div>
+          </div>
+        </div>
+        <div class="card wide">
+          <div class="card-label">How it works</div>
+          <p class="note">
+            The backend runs in Debian proot-distro, which cannot call Android
+            commands directly. It talks to a small bridge daemon in Termux
+            (localhost, token-protected). Commands are tried in order:
+            <strong>ADB → Shizuku (rish) → Termux API</strong>.
+            See README.md for setup and troubleshooting.
+          </p>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
