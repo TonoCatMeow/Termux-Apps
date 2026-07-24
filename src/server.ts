@@ -41,7 +41,7 @@ const bridge = new AndroidBridge(termux, adb, shizuku);
 const app = express();
 app.use(express.json({ limit: '2mb' }));
 
-const frontendDir = path.resolve(__dirname, '..', '..', 'frontend');
+const frontendDir = path.resolve(__dirname, '..', 'frontend');
 
 const ah =
   (fn: (req: Request, res: Response) => Promise<void>) =>

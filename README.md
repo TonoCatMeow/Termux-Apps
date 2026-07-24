@@ -128,8 +128,8 @@ proot-distro login debian --bind /sdcard
 Copy the project into Debian (example: from shared storage):
 
 ```sh
-cp -r /sdcard/path/to/android-control-panel ~/
-cd ~/android-control-panel/backend
+cp -r /sdcard/path/to/android ~/
+cd ~/android        # project root: package.json, src/, frontend/ live here
 ```
 
 Install, build, start (Node.js/npm already exist inside Debian):
