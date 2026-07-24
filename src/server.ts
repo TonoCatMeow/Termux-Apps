@@ -17,6 +17,15 @@ import { getDeviceInfo } from './device';
 import { getApps, launchApp } from './apps';
 import { captureScreenshot } from './screenshot';
 import { setupWebSocket } from './websocket';
+import {
+  SESSION_COOKIE,
+  checkPassword,
+  createToken,
+  requireAuth,
+  sessionTtlSeconds,
+  tokenFromRequest,
+  verifyToken,
+} from './auth';
 import { handleInput } from './input';
 import { VideoStreamer } from './video';
 import { apksDir, dataDir, getRoots, listDir, resolvePath, safeFileName, uploadsTmpDir } from './files';
@@ -41,6 +50,32 @@ const ah =
   (fn: (req: Request, res: Response) => Promise<void>) =>
   (req: Request, res: Response, next: NextFunction) =>
     fn(req, res).catch(next);
+
+// ----------------------------------------------------------------- auth ----
+app.post('/api/login', (req, res) => {
+  if (!checkPassword(req.body && req.body.password)) {
+    res.status(403).json({ error: 'Wrong password' });
+    return;
+  }
+  const token = createToken();
+  res.setHeader(
+    'Set-Cookie',
+    `${SESSION_COOKIE}=${encodeURIComponent(token)}; HttpOnly; Path=/; Max-Age=${sessionTtlSeconds}; SameSite=Lax`,
+  );
+  res.json({ ok: true, token });
+});
+
+app.post('/api/logout', (_req, res) => {
+  res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; HttpOnly; Path=/; Max-Age=0`);
+  res.json({ ok: true });
+});
+
+app.get('/api/me', (req, res) => {
+  res.json({ authenticated: verifyToken(tokenFromRequest(req)) });
+});
+
+// Everything below requires a valid session.
+app.use('/api', requireAuth);
 
 // --------------------------------------------------------------- device ----
 app.get(
@@ -268,6 +303,9 @@ server.listen(PORT, HOST, () => {
   console.log(`Android Control Panel listening on http://${HOST}:${PORT}`);
   console.log(`Frontend directory: ${frontendDir}`);
   console.log(`Data directory:     ${dataDir()}`);
+  if (!process.env.PANEL_PASSWORD) {
+    console.log('Login password: "pi" (default) - set PANEL_PASSWORD to change it.');
+  }
   if (!process.env.ADB_SERIAL) {
     console.log('Hint: set ADB_SERIAL=127.0.0.1:<wireless-debugging-port> to enable adb.');
   }

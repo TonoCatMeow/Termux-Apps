@@ -7,6 +7,7 @@ import { getDeviceInfo } from './device';
 import { captureScreenshot } from './screenshot';
 import { handleInput } from './input';
 import { VideoStreamer } from './video';
+import { parseCookieHeader, verifyToken, SESSION_COOKIE } from './auth';
 
 function send(ws: WebSocket, msg: object): void {
   if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
@@ -23,7 +24,14 @@ export function setupWebSocket(
   // Max allowed frame rate. SCREEN_MAX_FPS = "as fast as screencap can go".
   const MAX_FPS = Math.min(Math.max(Number(process.env.SCREEN_MAX_FPS) || 30, 1), 30);
 
-  wss.on('connection', ws => {
+  wss.on('connection', (ws, req) => {
+    // Same-origin cookies ride along with the WS handshake - reuse the session.
+    const cookies = parseCookieHeader(typeof req.headers.cookie === 'string' ? req.headers.cookie : null);
+    if (!verifyToken(cookies[SESSION_COOKIE])) {
+      ws.close(4401, 'unauthorized');
+      return;
+    }
+
     clients.add(ws);
     const notify = (msg: object) => send(ws, msg);
     let screenTimer: NodeJS.Timeout | null = null;
