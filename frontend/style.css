@@ -79,6 +79,13 @@ input:focus, select:focus { border-color: var(--accent-2); }
 .login-logo { font-size: 44px; }
 .login-card h1 { font-size: 20px; }
 .login-error { color: var(--danger); min-height: 18px; font-size: 13px; }
+.github-link {
+  color: var(--accent-2);
+  font-size: 13px;
+  text-decoration: none;
+  margin-top: 4px;
+}
+.github-link:hover { text-decoration: underline; }
 
 /* -------------------------------- layout ------------------------------- */
 .app-view { min-height: 100vh; display: flex; flex-direction: column; }
