@@ -1,9 +1,9 @@
 // Device information collection.
 //
-// Note what works from WHERE inside Debian proot-distro:
-//   - /proc/meminfo and /proc/cpuinfo are readable directly (shared kernel)
-//   - network interfaces are visible directly (shared network namespace)
-//   - Android properties / battery / storage need the AndroidBridge
+// Running inside Termux:
+//   - /proc/meminfo and /proc/cpuinfo are readable directly
+//   - network interfaces are visible directly
+//   - Android properties / battery / storage go through the AndroidBridge
 
 import os from 'os';
 import fs from 'fs';
@@ -85,9 +85,9 @@ async function storageInfo(bridge: AndroidBridge): Promise<StorageInfo> {
       };
     }
   }
-  // Fallbacks: /sdcard may be bind-mounted into Debian; otherwise the Debian
-  // rootfs lives on the phone's /data partition, so df / is still the
-  // phone's real internal storage usage.
+  // Fallbacks: direct df on /sdcard; otherwise the Termux rootfs lives on
+  // the phone's /data partition, so df / is still the phone's real internal
+  // storage usage.
   const local = (await dfLocal('/sdcard')) || (await dfLocal('/'));
   return local || { path: '/', totalBytes: null, usedBytes: null, freeBytes: null };
 }

@@ -2,10 +2,9 @@
 //
 // Roots that can be browsed:
 //   - "panel"       : the backend's own data directory (always available)
-//   - "sdcard"      : /sdcard, if it is bind-mounted into Debian
-//                     (proot-distro login debian --bind /sdcard - see README)
+//   - "sdcard"      : /sdcard (needs termux-setup-storage permission)
 //   - "shared"      : /storage/emulated/0, same as above
-//   - "debian-home" : the Debian user's home directory
+//   - "termux-home" : the Termux home directory
 //
 // Private Android app data (/data/data/<pkg>) is intentionally NOT touched.
 
@@ -52,8 +51,8 @@ export function getRoots(): FsRoot[] {
   if (isReadableDir('/storage/emulated/0') && !roots.some(r => r.path === '/storage/emulated/0')) {
     roots.push({ name: 'shared', path: '/storage/emulated/0' });
   }
-  const home = process.env.HOME || '/root';
-  if (isReadableDir(home)) roots.push({ name: 'debian-home', path: home });
+  const home = process.env.HOME || '/data/data/com.termux/files/home';
+  if (isReadableDir(home)) roots.push({ name: 'termux-home', path: home });
   return roots;
 }
 

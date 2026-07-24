@@ -1,17 +1,13 @@
 // ADB provider.
 //
-// Two ways to reach adbd from inside Debian proot-distro:
-//   1. A local `adb` binary inside Debian (apt install adb) talking over TCP to
-//      the phone's Wireless Debugging endpoint (ADB_SERIAL, e.g. 127.0.0.1:38001).
-//      Networking is shared with the host, so this works from proot.
-//   2. Fallback: `adb` installed inside Termux (pkg install android-tools),
-//      executed through the Termux bridge.
+// adb runs directly inside Termux (pkg install android-tools) and talks to
+// the phone's own Wireless Debugging endpoint over TCP (ADB_SERIAL,
+// e.g. 192.168.254.87:39001).
 //
 // Missing adb is handled gracefully: every method reports failure and the
 // AndroidBridge falls back to Shizuku / Termux transports.
 
 import { execFile } from 'child_process';
-import { TermuxBridge, shq } from './termux';
 import { ExecResult } from './types';
 
 const MAX_BUFFER = 64 * 1024 * 1024;
@@ -19,36 +15,32 @@ const MAX_BUFFER = 64 * 1024 * 1024;
 export class AdbProvider {
   private serial: string;
   private bin: string;
-  private localChecked = false;
-  private localOk = false;
+  private checked = false;
+  private adbOk = false;
 
-  constructor(private termux: TermuxBridge) {
+  constructor() {
     this.serial = (process.env.ADB_SERIAL || '').trim();
     this.bin = process.env.ADB_PATH || 'adb';
   }
 
-  /** "-s <serial> " fragment for commands executed through the bridge. */
+  /** "-s <serial> " fragment for raw adb command strings. */
   serialFlag(): string {
     return this.serial ? `-s ${this.serial} ` : '';
   }
 
   async localAvailable(): Promise<boolean> {
-    if (this.localChecked) return this.localOk;
-    const r = await this.runLocal(['--version'], 5000);
-    this.localOk = r.ok;
-    this.localChecked = true;
-    return this.localOk;
+    if (this.checked) return this.adbOk;
+    const r = await this.run(['--version'], 5000);
+    this.adbOk = r.ok;
+    this.checked = true;
+    return this.adbOk;
   }
 
   /** Connect to the Wireless Debugging endpoint if ADB_SERIAL is configured. */
   async ensureConnected(): Promise<void> {
     if (!this.serial) return;
     try {
-      if (await this.localAvailable()) {
-        await this.runLocal(['connect', this.serial], 15000);
-      } else {
-        await this.termux.exec(`adb connect ${this.serial}`, 15000);
-      }
+      await this.run(['connect', this.serial], 15000);
     } catch {
       // ignore - availability checks will report the real state
     }
@@ -67,14 +59,8 @@ export class AdbProvider {
 
   /** Run an adb command (without the leading "adb"). */
   async exec(args: string[], timeoutMs = 30000): Promise<ExecResult> {
-    const full = [...this.baseArgs(), ...args];
-    if (await this.localAvailable()) {
-      const r = await this.runLocal(full, timeoutMs);
-      return { ok: r.ok, stdout: r.stdout as string, stderr: r.stderr, code: r.code, transport: 'adb-local' };
-    }
-    const cmd = ['adb', ...full].map(shq).join(' ');
-    const r = await this.termux.exec(cmd, timeoutMs);
-    return { ...r, transport: r.transport === 'none' ? 'none' : 'adb-termux' };
+    const r = await this.run([...this.baseArgs(), ...args], timeoutMs);
+    return { ok: r.ok, stdout: r.stdout as string, stderr: r.stderr, code: r.code, transport: 'adb-local' };
   }
 
   /** Run `adb shell <cmd>`. */
@@ -84,14 +70,9 @@ export class AdbProvider {
 
   /** Run `adb exec-out <cmd>` and return raw binary stdout. */
   async execOutBuffer(cmd: string, timeoutMs = 60000): Promise<Buffer> {
-    const full = [...this.baseArgs(), 'exec-out', cmd];
-    if (await this.localAvailable()) {
-      const r = await this.runLocal(full, timeoutMs, true);
-      if (!r.ok) throw new Error(r.stderr || 'adb exec-out failed');
-      return r.stdout as Buffer;
-    }
-    const sh = ['adb', ...full].map(shq).join(' ');
-    return this.termux.execBase64(sh, timeoutMs);
+    const r = await this.run([...this.baseArgs(), 'exec-out', cmd], timeoutMs, true);
+    if (!r.ok) throw new Error(r.stderr || 'adb exec-out failed');
+    return r.stdout as Buffer;
   }
 
   async install(apkPath: string, timeoutMs = 180000): Promise<ExecResult> {
@@ -102,7 +83,7 @@ export class AdbProvider {
     return this.serial ? ['-s', this.serial] : [];
   }
 
-  private runLocal(
+  private run(
     args: string[],
     timeoutMs = 30000,
     binary = false,

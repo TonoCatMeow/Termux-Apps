@@ -1,43 +1,35 @@
 # Android Control Panel
 
 A local, web-based "fake emulator" style dashboard that controls your **real**
-Android phone. The Node.js backend runs inside a **Debian proot-distro**
-environment on Termux and serves a dashboard on `http://PHONE_IP:2010`.
+Android phone. The Node.js backend runs **natively inside Termux** and serves
+a dashboard on `http://PHONE_IP:2010`.
 
 ```
 Browser
    |
    v
-Node.js Web Panel (0.0.0.0:2010)        <- inside Debian proot-distro
+Node.js Web Panel (0.0.0.0:2010)        <- inside Termux
    |
    v
-Android Bridge layer (android.ts)
+Android Bridge layer (android.ts)       <- direct local execution, no middlemen
    |
-   +--> Termux bridge (termux-bridge.js, localhost:17845, localhost-only)
-   |       +--> Termux:API  (battery, notifications, ...)
-   |       +--> am / pm / getprop / monkey (as the Termux app uid)
-   |       +--> adb    (android-tools in Termux)
-   |       +--> rish   (Shizuku shell)
-   |
-   +--> ADB (local adb binary in Debian -> Wireless Debugging over TCP)
-   |
-   +--> Shizuku (rish, via the Termux bridge)
+   +--> Termux:API  (battery, notifications, ...)
+   +--> am / pm / getprop / monkey (as the Termux app uid)
+   +--> adb    (android-tools -> Wireless Debugging over TCP)
+   +--> rish   (Shizuku shell)
    |
    v
 Android Framework -> Installed Apps
 ```
 
-**Why the bridge?** Debian proot-distro shares the Android kernel but does NOT
-see Termux's filesystem or Android binaries. Loopback networking *is* shared,
-so a tiny localhost-only daemon in Termux (`bridge/termux-bridge.js`) executes
-whitelisted Android commands on behalf of the Debian backend. No feature is
-silently dropped: if a transport is missing, the API tells you exactly which
-one to set up.
+Everything the backend needs (`termux-api`, `am`, `pm`, `adb`, `rish`) is
+executed directly as the Termux app uid. No proot, no bridge daemon, no
+Docker, no cloud.
 
 ## Features
 
 - **Dashboard** – model, manufacturer, Android version, battery %/charging,
-  storage, RAM, CPU, local IP, bridge status; auto-updates via WebSocket.
+  storage, RAM, CPU, local IP, transport status; auto-updates via WebSocket.
 - **App manager** – list installed apps, search, **Launch** button.
   - `GET /api/apps` · `POST /api/apps/:package/launch`
 - **Device info** – `GET /api/device`
@@ -45,7 +37,7 @@ one to set up.
   WebSocket (0.5–4 FPS).
 - **WebSockets** – `/ws` for status pushes, screenshot frames, future controls.
 - **File manager** – browse/download/upload user-accessible storage
-  (panel data dir, `/sdcard` if bound, Debian home).
+  (panel data dir, `/sdcard`, Termux home).
 - **APK manager** – upload APK, install via adb / Shizuku / system installer.
 - **System actions** – launch apps, open URLs (`POST /api/open-url`), battery,
   device info, screenshots.
@@ -69,24 +61,24 @@ files, and install APKs with on-screen confirmation.
 
 ## 1. Android apps to install
 
-Install from F-Droid / GitHub releases (NOT the Play Store Termux — it is
-outdated):
+Install from F-Droid / GitHub releases (NOT the Play Store Termux — outdated):
 
 - **Termux** (F-Droid)
 - **Termux:API** (F-Droid — must match the Termux source)
+- **Termux:Boot** (F-Droid — for autostart, open it once after installing)
 - **Shizuku** (https://github.com/rikkaapps/shizuku)
 
 ## 2. Termux setup
 
-Open Termux:
-
 ```sh
-pkg update
-pkg install nodejs android-tools termux-api openssh curl
+pkg update -y
+pkg install -y nodejs android-tools termux-api git
 termux-setup-storage        # grant storage permission (for /sdcard access)
 ```
 
-### Install rish (Shizuku shell) in Termux
+Also: Android Settings → Apps → Termux → Battery → **Unrestricted**.
+
+### Install rish (Shizuku shell)
 
 ```sh
 cd ~
@@ -95,49 +87,16 @@ curl -LO https://github.com/RikkaApps/Shizuku/raw/master/shell/rish_shizuku.dex
 chmod +x rish
 ```
 
-### Copy + start the Termux bridge
-
-Copy `bridge/termux-bridge.js` into Termux home (e.g. via `scp`, shared
-storage, or paste it). Then:
+### Clone + build + run
 
 ```sh
-nohup node ~/termux-bridge.js > ~/bridge.log 2>&1 &
-```
-
-The bridge listens on `127.0.0.1:17845` only — it is not reachable from the
-network.
-
-> Optional SSH fallback transport: Termux's `sshd` (port 8022) also works.
-> In Debian: `apt install sshpass`, then start the backend with
-> `TERMUX_SSH_CMD="sshpass -p <password> ssh -o StrictHostKeyChecking=no -p 8022 <user>@127.0.0.1"`.
-> The backend uses SSH automatically if the HTTP bridge is down.
-
-## 3. Debian setup
-
-Enter the Debian environment (bind `/sdcard` so the file manager can browse
-shared storage):
-
-```sh
-proot-distro login debian --bind /sdcard
-# (older proot-distro: use: proot-distro login debian --shared-tmp
-#  and add a bind in the distro script, or just use the panel/debian-home roots)
-```
-
-Copy the project into Debian (example: from shared storage):
-
-```sh
-cp -r /sdcard/path/to/android ~/
-cd ~/android        # project root: package.json, src/, frontend/ live here
-```
-
-Install, build, start (Node.js/npm already exist inside Debian):
-
-```sh
+cd ~
+git clone https://github.com/TonoCatMeow/Termux-Apps.git ~/android
+cd ~/android
 npm install
 npm run build
 
-export ADB_SERIAL='127.0.0.1:39001'   # your wireless debugging IP:port (optional but recommended)
-
+export ADB_SERIAL='192.168.254.87:39001'   # your wireless debugging IP:port (optional but recommended)
 PORT=2010 npm start
 ```
 
@@ -146,50 +105,86 @@ PORT=2010 npm start
 | Variable | Default | Purpose |
 |---|---|---|
 | `PORT` | `2010` | HTTP port (bound to `0.0.0.0`) |
-| `TERMUX_BRIDGE_URL` | `http://127.0.0.1:17845` | Bridge endpoint |
-| `TERMUX_SSH_CMD` | – | Optional SSH fallback transport |
-| `ADB_SERIAL` | – | e.g. `127.0.0.1:39001` (wireless debugging) |
+| `ADB_SERIAL` | – | e.g. `192.168.254.87:39001` (wireless debugging) |
+| `ADB_PATH` | `adb` | Custom adb binary path |
 | `RISH_CMD` | `RISH_APPLICATION_ID=com.termux sh "$HOME/rish"` | rish invocation |
 | `PANEL_DATA_DIR` | `./data` | Uploads/APKs/files root |
 
-## 4. Android setup
+## 3. Android setup
 
 1. **Enable Developer Options**: Settings → About phone → tap *Build number* 7×.
 2. **Enable Wireless Debugging**: Settings → Developer options → *Wireless debugging* → ON.
-3. **Connect adb** (one-time pairing; in Termux or Debian):
+3. **Connect adb** (one-time pairing, in Termux):
    ```sh
-   # On the phone: Wireless debugging → "Pair device with pairing code"
+   # Wireless debugging → "Pair device with pairing code"
    adb pair 127.0.0.1:<pair-port>        # enter the 6-digit code
    # Back on the Wireless debugging screen, note the IP:port shown:
-   adb connect 127.0.0.1:<port>
+   adb connect 192.168.254.87:<port>
    adb devices                           # should show "device"
    ```
-   Use that `127.0.0.1:<port>` as `ADB_SERIAL`. Note: the port changes after
-   reboots/toggles — re-run `adb connect` or update `ADB_SERIAL`.
+   Use that `IP:port` as `ADB_SERIAL`. The port changes after reboots/toggles.
 4. **Start Shizuku**:
    ```sh
    adb shell sh /sdcard/Android/data/moe.shizuku.privileged.api/start.sh
    ```
-   (Or open the Shizuku app → *Start via wireless debugging*.) Then verify in
-   Termux: `RISH_APPLICATION_ID=com.termux sh ~/rish -c 'id'` → should print
-   `uid=2000(shell)`.
+   Then verify: `RISH_APPLICATION_ID=com.termux sh ~/rish -c 'id'`
+   → should print `uid=2000(shell)`.
+5. In the Shizuku app, enable **"Start on boot"** so it survives reboots.
 
 ### Permissions required
 
-- Termux: **Storage** (`termux-setup-storage`), battery optimisation disabled
-  (recommended so the bridge keeps running).
+- Termux: **Storage** (`termux-setup-storage`); battery optimisation off.
 - Termux:API app installed for `termux-battery-status` etc.
 - Shizuku running (for shell-level actions without adb).
 
-## 5. Connecting
-
-Find the phone's IP (in Termux or Debian):
+## 4. Autostart on boot (Termux:Boot)
 
 ```sh
-ip addr show wlan0     # or: ifconfig wlan0
+mkdir -p ~/.termux/boot
+nano ~/.termux/boot/start-panel.sh
 ```
 
-From any device on the same Wi-Fi, open:
+Paste:
+
+```sh
+#!/data/data/com.termux/files/usr/bin/sh
+# Android Control Panel autostart
+
+termux-wake-lock
+sshd
+
+# Best-effort adb auto-connect (wireless debugging port changes every boot,
+# this discovers it via mDNS). Shizuku's own "start on boot" covers the rest.
+(
+  sleep 20
+  for i in 1 2 3 4 5 6; do
+    ADDR=$(adb mdns services 2>/dev/null | grep '_adb-tls-connect' \
+           | grep -oE '([0-9]+\.){3}[0-9]+:[0-9]+' | head -1)
+    if [ -n "$ADDR" ]; then
+      adb connect "$ADDR"
+      adb shell sh /sdcard/Android/data/moe.shizuku.privileged.api/start.sh
+      break
+    fi
+    sleep 10
+  done
+) &
+
+cd "$HOME/android" && nohup node dist/server.js > "$HOME/panel.log" 2>&1 &
+```
+
+Then:
+
+```sh
+chmod +x ~/.termux/boot/start-panel.sh
+```
+
+## 5. Connecting
+
+```sh
+ip addr show wlan0     # find phone IP
+```
+
+Open from any device on the same Wi-Fi:
 
 ```
 http://PHONE_IP:2010
@@ -197,34 +192,34 @@ http://PHONE_IP:2010
 
 No login required — the dashboard opens directly.
 
+## Updating
+
+```sh
+cd ~/android
+git pull
+npm install
+npm run build
+# restart the server (Ctrl+C / pkill -f "node dist/server.js", then npm start)
+```
+
 ---
 
 # TROUBLESHOOTING
 
-**Termux bridge unavailable (`termux: down` on the Bridges tab)**
-- Check it's running in Termux: `ps aux | grep termux-bridge` / read `~/bridge.log`.
-- Test from Debian: `curl http://127.0.0.1:17845/health`.
-- Fallback: set `TERMUX_SSH_CMD` to use Termux's sshd instead.
-
 **ADB unavailable**
 - Wireless debugging turns off on reboot/wifi change: re-enable + `adb connect`.
-- `ADB_SERIAL` must match the *current* IP:port shown on the Wireless debugging screen.
+- `ADB_SERIAL` must match the *current* IP:port on the Wireless debugging screen.
 - Pairing uses a *different* port than connecting — pair first, then connect.
-- Debian-side adb: `apt install adb` (optional; Termux-side `android-tools` works too).
 
 **Shizuku unavailable**
-- Shizuku stops on reboot — start it again (see step 4 above).
+- Shizuku stops on reboot — enable "Start on boot" in the Shizuku app, or
+  start it again (step 3 above).
 - `~/rish` and `~/rish_shizuku.dex` must both exist in Termux home.
 - Test: `RISH_APPLICATION_ID=com.termux sh ~/rish -c 'id'` must print `uid=2000(shell)`.
-- Custom location? Set `RISH_CMD`.
-
-**Debian cannot access Android commands**
-- Expected — that's the whole reason for the bridge. Do not try to install
-  `termux-api` inside Debian; run the bridge in Termux.
 
 **Apps do not launch**
-- Launch needs *some* working transport. Termux-only mode works for most apps
-  (`am start` as the app uid is allowed); adb/Shizuku adds `monkey` support.
+- Termux-only mode works for most apps (`am start` as the app uid is allowed);
+  adb/Shizuku adds `monkey` support.
 - Package list empty on Android 11+ without adb/Shizuku: package visibility
   rules hide most packages from the Termux uid — enable adb or Shizuku.
 
@@ -236,15 +231,11 @@ No login required — the dashboard opens directly.
 - Verify the backend binds 0.0.0.0: check startup log; try `ss -tlnp | grep 2010`.
 - Some Wi-Fi networks enable *client isolation* — test from the phone's own
   browser first (`http://127.0.0.1:2010`).
-- On some devices, Android blocks inbound connections to Termux on mobile
-  hotspots; use the phone's browser or a different network.
-- Make sure Termux/Debian is running in the foreground or with a wakelock
-  (`termux-wake-lock`) so Android doesn't kill it.
+- Make sure Termux has a wakelock (`termux-wake-lock`) so Android doesn't kill it.
 
-**Backend cannot communicate with Termux**
-- Loopback is shared in proot, so `127.0.0.1:17845` from Debian == Termux.
-  If the distro was started with network isolation (rare), disable it.
-- Confirm `node` exists in Termux (`pkg install nodejs`).
+**npm install fails in Termux**
+- All dependencies are pure JS, so no compilers are needed. Make sure you have
+  the F-Droid Termux and a recent `nodejs` package (`pkg upgrade nodejs`).
 
 ---
 
@@ -253,5 +244,3 @@ No login required — the dashboard opens directly.
 - **There is no authentication.** Anyone on your local network who can reach
   `PHONE_IP:2010` gets full control of the dashboard. Use only on networks
   you trust.
-- The Termux bridge executes whitelisted shell commands; it binds localhost
-  only, so it cannot be reached from the network directly.

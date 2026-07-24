@@ -1,6 +1,6 @@
 // Android Control Panel - main server.
 //
-// Runs inside Debian proot-distro, binds 0.0.0.0:2010, serves the frontend
+// Runs natively inside Termux, binds 0.0.0.0:2010, serves the frontend
 // and the JSON/WebSocket API. All Android actions go through AndroidBridge.
 
 import express, { NextFunction, Request, Response } from 'express';
@@ -24,7 +24,7 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 // ---------------------------------------------------------------- bridge ---
 const termux = new TermuxBridge();
-const adb = new AdbProvider(termux);
+const adb = new AdbProvider();
 const shizuku = new ShizukuProvider(termux);
 const bridge = new AndroidBridge(termux, adb, shizuku);
 

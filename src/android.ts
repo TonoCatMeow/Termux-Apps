@@ -7,11 +7,11 @@
 //          |
 //          +--> AdbProvider      (shell privileges, via Wireless Debugging)
 //          +--> ShizukuProvider  (shell privileges, via rish)
-//          +--> TermuxBridge     (Termux app uid: termux-api, am, getprop, ...)
+//          +--> TermuxBridge     (direct local exec: termux-api, am, getprop, ...)
 //
-// No other file in the project runs Android shell commands directly.
+// The backend runs natively inside Termux, so all of these are direct local
+// executions. No other file in the project runs Android shell commands.
 
-import fs from 'fs';
 import { AdbProvider } from './adb';
 import { ShizukuProvider } from './shizuku';
 import { TermuxBridge, shq } from './termux';
@@ -191,81 +191,61 @@ export class AndroidBridge {
    * Install an APK that was uploaded to the backend.
    *
    * Chain of attempts:
-   *   1. adb install from Debian (file is local to the backend)
-   *   2. push to Termux home + adb install from the Termux side
-   *   3. copy to shared storage + `pm install` via Shizuku (shell uid)
-   *   4. open the system package installer on the phone (requires the user
+   *   1. adb install (file is already local to the backend)
+   *   2. copy to shared storage + `pm install` via Shizuku (shell uid)
+   *   3. open the system package installer on the phone (requires the user
    *      to confirm on screen - there is NO silent install without
    *      shell/root privileges)
    */
   async installApk(localPath: string, originalName: string): Promise<InstallResult> {
     const details: string[] = [];
 
-    // 1. Local adb inside Debian.
+    // 1. adb install.
     try {
-      if ((await this.adb.localAvailable()) && (await this.adb.isAvailable())) {
+      if (await this.adb.isAvailable()) {
         const r = await this.adb.install(localPath);
         if (r.ok && /Success/i.test(r.stdout + r.stderr)) {
-          return { ok: true, method: 'adb-local', detail: r.stdout.trim() || 'Success' };
+          return { ok: true, method: 'adb', detail: r.stdout.trim() || 'Success' };
         }
-        details.push(`adb-local: ${(r.stderr || r.stdout).trim()}`);
+        details.push(`adb: ${(r.stderr || r.stdout).trim()}`);
       }
     } catch (e: any) {
-      details.push(`adb-local: ${e.message}`);
+      details.push(`adb: ${e.message}`);
     }
 
-    // Push the APK to the Termux side (required for steps 2-4).
+    // Steps 2-3 need the APK in shared storage so the shell uid / system
+    // installer can read it.
     const safeName = originalName.replace(/[^A-Za-z0-9._-]/g, '_');
-    const termuxPath = `/data/data/com.termux/files/home/.panel-apks/${Date.now()}-${safeName}`;
-    let pushed = false;
-    try {
-      const data = fs.readFileSync(localPath);
-      const w = await this.termux.writeFile(termuxPath, data);
-      if (w.ok) {
-        pushed = true;
-        await this.termux.exec(`chmod 644 ${shq(termuxPath)}`);
-      } else {
-        details.push(`push: ${w.stderr}`);
+    const sharedPath = `/sdcard/Download/panel/${Date.now()}-${safeName}`;
+    const cp = await this.termux.exec(
+      `mkdir -p /sdcard/Download/panel && cp ${shq(localPath)} ${shq(sharedPath)} && chmod 644 ${shq(sharedPath)}`,
+      30000,
+    );
+    if (!cp.ok) {
+      details.push(`copy-to-sdcard: ${cp.stderr.trim()}`);
+    } else {
+      // 2. Shizuku pm install.
+      if (await this.shizuku.isAvailable()) {
+        const r = await this.shizuku.shell(`pm install -r ${shq(sharedPath)}`, 180000);
+        if (r.ok && /Success/i.test(r.stdout + r.stderr)) {
+          return { ok: true, method: 'shizuku-pm', detail: r.stdout.trim() || 'Success' };
+        }
+        details.push(`shizuku-pm: ${(r.stderr || r.stdout).trim()}`);
       }
-    } catch (e: any) {
-      details.push(`push: ${e.message}`);
-    }
 
-    // 2. adb install executed from Termux.
-    if (pushed) {
-      const r = await this.termux.exec(`adb ${this.adb.serialFlag()}install -r ${shq(termuxPath)}`, 180000);
-      if (r.ok && /Success/i.test(r.stdout + r.stderr)) {
-        return { ok: true, method: 'adb-termux', detail: r.stdout.trim() || 'Success' };
-      }
-      details.push(`adb-termux: ${(r.stderr || r.stdout).trim()}`);
-    }
-
-    // 3. Shizuku pm install (file must live where the shell uid can read it).
-    if (pushed && (await this.shizuku.isAvailable())) {
-      const sharedPath = `/sdcard/Download/panel/${safeName}`;
-      await this.termux.exec(
-        `mkdir -p /sdcard/Download/panel && cp ${shq(termuxPath)} ${shq(sharedPath)} && chmod 644 ${shq(sharedPath)}`,
-        30000,
-      );
-      const r = await this.shizuku.shell(`pm install -r ${shq(sharedPath)}`, 180000);
-      if (r.ok && /Success/i.test(r.stdout + r.stderr)) {
-        return { ok: true, method: 'shizuku-pm', detail: r.stdout.trim() || 'Success' };
-      }
-      details.push(`shizuku-pm: ${(r.stderr || r.stdout).trim()}`);
-
-      // 4. Open the system installer - user must confirm on the phone screen.
-      const r4 = await this.shell(
+      // 3. Open the system installer - user must confirm on the phone screen.
+      const r3 = await this.shell(
         `am start -a android.intent.action.VIEW -d file://${sharedPath} -t application/vnd.android.package-archive`,
         15000,
       );
-      if (r4.ok) {
+      if (r3.ok) {
         return {
           ok: true,
           method: 'intent-prompt',
           detail: 'System installer opened on the device - confirm the installation on the phone screen.',
         };
       }
-      details.push(`intent: ${r4.stderr.trim()}`);
+      details.push(`intent: ${r3.stderr.trim()}`);
     }
 
     return {

@@ -5,9 +5,9 @@
 // to it through "rish" - a small launcher that executes commands with
 // Shizuku's privileges.
 //
-// rish lives on the Termux side (it must run as the Termux app uid so Shizuku
-// can identify the caller via RISH_APPLICATION_ID), therefore every command
-// here is executed through the Termux bridge.
+// The backend runs inside Termux, so rish is executed directly as the Termux
+// app uid (which is exactly what Shizuku needs to identify the caller via
+// RISH_APPLICATION_ID).
 //
 // Setup (documented in README):
 //   In Termux:
