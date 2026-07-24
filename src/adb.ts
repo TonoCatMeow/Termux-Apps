@@ -7,7 +7,7 @@
 // Missing adb is handled gracefully: every method reports failure and the
 // AndroidBridge falls back to Shizuku / Termux transports.
 
-import { execFile } from 'child_process';
+import { ChildProcess, execFile, spawn } from 'child_process';
 import { ExecResult } from './types';
 
 const MAX_BUFFER = 64 * 1024 * 1024;
@@ -77,6 +77,13 @@ export class AdbProvider {
 
   async install(apkPath: string, timeoutMs = 180000): Promise<ExecResult> {
     return this.exec(['install', '-r', apkPath], timeoutMs);
+  }
+
+  /** Spawn an adb command with a streaming stdout (used for screenrecord). */
+  spawnStream(args: string[]): ChildProcess {
+    return spawn(this.bin, [...this.baseArgs(), ...args], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
   }
 
   private baseArgs(): string[] {

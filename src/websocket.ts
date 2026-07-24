@@ -5,12 +5,18 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { AndroidBridge } from './android';
 import { getDeviceInfo } from './device';
 import { captureScreenshot } from './screenshot';
+import { handleInput } from './input';
+import { VideoStreamer } from './video';
 
 function send(ws: WebSocket, msg: object): void {
   if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
 }
 
-export function setupWebSocket(server: http.Server, bridge: AndroidBridge): WebSocketServer {
+export function setupWebSocket(
+  server: http.Server,
+  bridge: AndroidBridge,
+  video: VideoStreamer,
+): WebSocketServer {
   const wss = new WebSocketServer({ server, path: '/ws' });
   const clients = new Set<WebSocket>();
 
@@ -19,6 +25,7 @@ export function setupWebSocket(server: http.Server, bridge: AndroidBridge): WebS
 
   wss.on('connection', ws => {
     clients.add(ws);
+    const notify = (msg: object) => send(ws, msg);
     let screenTimer: NodeJS.Timeout | null = null;
     let screenLoop = false;
 
@@ -69,6 +76,16 @@ export function setupWebSocket(server: http.Server, bridge: AndroidBridge): WebS
         }
       } else if (msg.type === 'unsubscribe-screen') {
         stopScreen();
+      } else if (msg.type === 'subscribe-video') {
+        if (typeof msg.preset === 'string') video.setPreset(msg.preset);
+        video.addViewer(ws, notify);
+        if (video.currentInfo) send(ws, { type: 'video-info', ...video.currentInfo });
+      } else if (msg.type === 'unsubscribe-video') {
+        video.removeViewer(ws);
+      } else if (msg.type === 'input') {
+        handleInput(bridge, msg)
+          .then(r => send(ws, { type: 'input-result', ok: r.ok, error: r.ok ? undefined : (r.stderr || 'input failed').trim() }))
+          .catch(e => send(ws, { type: 'input-result', ok: false, error: e.message }));
       } else if (msg.type === 'refresh-status') {
         pushStatus().catch(() => undefined);
       } else if (msg.type === 'ping') {
@@ -79,6 +96,7 @@ export function setupWebSocket(server: http.Server, bridge: AndroidBridge): WebS
     ws.on('close', () => {
       clients.delete(ws);
       stopScreen();
+      video.removeViewer(ws);
     });
 
     send(ws, { type: 'hello', at: Date.now() });

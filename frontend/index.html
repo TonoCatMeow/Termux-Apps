@@ -93,6 +93,41 @@
 
       <!-- =========================== SCREEN ========================== -->
       <section id="tab-screen" class="tab-panel">
+        <div class="section-title">Live video + control <span class="muted">(60fps H.264, requires ADB)</span></div>
+        <div class="toolbar">
+          <button id="video-start" class="btn btn-primary">Start video</button>
+          <button id="video-stop" class="btn" disabled>Stop</button>
+          <label class="muted">Quality
+            <select id="video-quality">
+              <option value="low">Low (~40%)</option>
+              <option value="medium" selected>Medium (720p-ish)</option>
+              <option value="high">High (native)</option>
+            </select>
+          </label>
+          <span id="video-status" class="muted"></span>
+        </div>
+        <div class="screen-frame video-frame">
+          <video id="video-el" muted autoplay playsinline></video>
+          <div id="video-placeholder" class="screen-placeholder">
+            Click = tap &nbsp;·&nbsp; drag = swipe &nbsp;·&nbsp; long-press = hold<br/>
+            Type on your keyboard to send text to the phone.<br/>
+            Requires ADB (screenrecord).
+          </div>
+        </div>
+        <div class="toolbar nav-bar">
+          <button class="btn nav-btn" data-key="BACK">◀ Back</button>
+          <button class="btn nav-btn" data-key="HOME">● Home</button>
+          <button class="btn nav-btn" data-key="RECENTS">■ Recents</button>
+          <button class="btn nav-btn" data-key="VOLUME_UP">Vol+</button>
+          <button class="btn nav-btn" data-key="VOLUME_DOWN">Vol−</button>
+          <button class="btn nav-btn" data-key="POWER">⏻ Power</button>
+        </div>
+        <div class="toolbar">
+          <input type="text" id="kbd-text" placeholder="Type text to send to the phone…" />
+          <button id="kbd-send" class="btn">Send text</button>
+        </div>
+
+        <div class="section-title">Still capture <span class="muted">(works via Shizuku too)</span></div>
         <div class="toolbar">
           <button id="screen-start" class="btn btn-primary">Start live view</button>
           <button id="screen-stop" class="btn" disabled>Stop</button>
@@ -199,6 +234,7 @@
 
   <div id="toast" class="toast hidden"></div>
 
+  <script src="vendor/jmuxer.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

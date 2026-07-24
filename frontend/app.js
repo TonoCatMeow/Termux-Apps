@@ -8,8 +8,11 @@ const state = {
   device: null,
   apps: [],
   screen: { live: false, fallbackTimer: null, lastError: '' },
+  video: { live: false, info: null },
   files: { roots: [], root: '', path: '' },
 };
+
+let jmuxer = null;
 
 const $ = sel => document.querySelector(sel);
 
@@ -69,17 +72,44 @@ function connectWs() {
   }
   state.ws = ws;
 
+  ws.binaryType = 'arraybuffer';
+
   ws.onopen = () => {
     state.wsOk = true;
     setConn(true, 'connected');
     if (state.screen.live) subscribeScreen();
+    if (state.video.live) subscribeVideo();
   };
 
   ws.onmessage = ev => {
+    // Binary frames = raw H.264 video chunks.
+    if (typeof ev.data !== 'string') {
+      if (jmuxer && state.video.live) {
+        try { jmuxer.feed({ video: new Uint8Array(ev.data) }); } catch { /* ignore */ }
+      }
+      return;
+    }
+
     let msg;
     try { msg = JSON.parse(ev.data); } catch { return; }
 
-    if (msg.type === 'status') {
+    if (msg.type === 'video-info') {
+      state.video.info = msg;
+      $('#video-status').textContent =
+        `${msg.deviceWidth}x${msg.deviceHeight} @${Math.round(msg.fps)}fps · ${msg.preset} · ${(msg.bitRate / 1e6).toFixed(0)} Mbps`;
+      const v = $('#video-el');
+      v.style.display = 'block';
+      $('#video-placeholder').style.display = 'none';
+    } else if (msg.type === 'video-reset') {
+      if (jmuxer && typeof jmuxer.reset === 'function') {
+        try { jmuxer.reset(); } catch { /* ignore */ }
+      }
+    } else if (msg.type === 'video-error') {
+      $('#video-status').textContent = msg.error;
+      toast(`Video: ${msg.error}`, 'err');
+    } else if (msg.type === 'input-result') {
+      if (!msg.ok && msg.error) $('#video-status').textContent = `input: ${msg.error}`;
+    } else if (msg.type === 'status') {
       state.device = msg.data;
       renderDevice(msg.data);
       renderBridges(msg.data.bridges);
@@ -258,6 +288,163 @@ $('#screen-fps').addEventListener('change', () => {
   stopScreen();
   startScreen();
 });
+// ------------------------------------------------------------------ video ---
+function subscribeVideo() {
+  if (state.ws && state.wsOk) {
+    state.ws.send(JSON.stringify({ type: 'subscribe-video', preset: $('#video-quality').value }));
+  }
+}
+
+function startVideo() {
+  if (!state.wsOk) { toast('WebSocket not connected yet', 'err'); return; }
+  if (typeof JMuxer === 'undefined') { toast('JMuxer failed to load', 'err'); return; }
+  try {
+    jmuxer = new JMuxer({
+      node: 'video-el',
+      mode: 'video',
+      flushingTime: 100,   // low latency for interactive control
+      fps: 60,
+      debug: false,
+      onError: () => { try { jmuxer.reset(); } catch { /* ignore */ } },
+    });
+  } catch (e) {
+    toast(`JMuxer: ${e.message}`, 'err');
+    return;
+  }
+  state.video.live = true;
+  $('#video-start').disabled = true;
+  $('#video-stop').disabled = false;
+  $('#video-status').textContent = 'starting stream…';
+  subscribeVideo();
+}
+
+function stopVideo() {
+  state.video.live = false;
+  if (state.ws && state.wsOk) state.ws.send(JSON.stringify({ type: 'unsubscribe-video' }));
+  if (jmuxer && typeof jmuxer.destroy === 'function') {
+    try { jmuxer.destroy(); } catch { /* ignore */ }
+  }
+  jmuxer = null;
+  const v = $('#video-el');
+  v.style.display = 'none';
+  v.src = '';
+  $('#video-placeholder').style.display = '';
+  $('#video-start').disabled = false;
+  $('#video-stop').disabled = true;
+  $('#video-status').textContent = '';
+}
+
+$('#video-start').addEventListener('click', startVideo);
+$('#video-stop').addEventListener('click', stopVideo);
+$('#video-quality').addEventListener('change', () => {
+  if (state.video.live) subscribeVideo();   // server restarts with new preset
+});
+
+// ------------------------------------------------------------- input: touch ---
+function sendInput(msg) {
+  if (!state.wsOk) return;
+  state.ws.send(JSON.stringify({ type: 'input', ...msg }));
+}
+
+function relPoint(e, el) {
+  const r = el.getBoundingClientRect();
+  return {
+    x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)),
+    y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)),
+  };
+}
+
+function toDevice(p) {
+  const info = state.video.info;
+  if (!info) return { x: Math.round(p.x * 1080), y: Math.round(p.y * 2400) };
+  const W = info.deviceWidth, H = info.deviceHeight;
+  const o = info.orientation || 0;
+  let x, y;
+  if (o === 0)      { x = p.x * W;       y = p.y * H; }
+  else if (o === 90)  { x = p.y * W;     y = (1 - p.x) * H; }
+  else if (o === 180) { x = (1 - p.x) * W; y = (1 - p.y) * H; }
+  else              { x = (1 - p.y) * W; y = p.x * H; }
+  return { x: Math.round(x), y: Math.round(y) };
+}
+
+(function setupVideoPointer() {
+  const el = $('#video-el');
+  let start = null;
+
+  el.addEventListener('pointerdown', e => {
+    if (!state.video.live) return;
+    e.preventDefault();
+    start = { p: relPoint(e, el), t: Date.now() };
+    try { el.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+  });
+
+  el.addEventListener('pointerup', e => {
+    if (!start || !state.video.live) return;
+    e.preventDefault();
+    const end = relPoint(e, el);
+    const dt = Date.now() - start.t;
+    const dist = Math.hypot(end.x - start.p.x, end.y - start.p.y);
+    const a = toDevice(start.p);
+
+    if (dist < 0.02) {
+      if (dt > 500) {
+        // long press = swipe to the same point with a duration
+        sendInput({ action: 'swipe', x1: a.x, y1: a.y, x2: a.x, y2: a.y, duration: dt });
+      } else {
+        sendInput({ action: 'tap', x: a.x, y: a.y });
+      }
+    } else {
+      const b = toDevice(end);
+      sendInput({ action: 'swipe', x1: a.x, y1: a.y, x2: b.x, y2: b.y, duration: Math.max(dt, 100) });
+    }
+    start = null;
+  });
+
+  el.addEventListener('pointercancel', () => { start = null; });
+  el.addEventListener('contextmenu', e => e.preventDefault());
+})();
+
+// ---------------------------------------------------------- input: keyboard ---
+document.addEventListener('keydown', e => {
+  if (!state.video.live) return;
+  const tag = ((e.target && e.target.tagName) || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+  const keyMap = {
+    Backspace: 'DEL',
+    Enter: 'ENTER',
+    Escape: 'BACK',
+    ArrowUp: 'DPAD_UP',
+    ArrowDown: 'DPAD_DOWN',
+    ArrowLeft: 'DPAD_LEFT',
+    ArrowRight: 'DPAD_RIGHT',
+    Tab: 'TAB',
+    ' ': 'SPACE',
+  };
+
+  if (keyMap[e.key]) {
+    sendInput({ action: 'key', key: keyMap[e.key] });
+    e.preventDefault();
+  } else if (e.key && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    sendInput({ action: 'text', text: e.key });
+    e.preventDefault();
+  }
+});
+
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => sendInput({ action: 'key', key: btn.dataset.key }));
+});
+
+$('#kbd-send').addEventListener('click', () => {
+  const t = $('#kbd-text').value;
+  if (!t) return;
+  sendInput({ action: 'text', text: t });
+  $('#kbd-text').value = '';
+});
+$('#kbd-text').addEventListener('keydown', e => {
+  if (e.key === 'Enter') $('#kbd-send').click();
+});
+
 $('#screen-single').addEventListener('click', async () => {
   $('#screen-status').textContent = 'capturing…';
   try {

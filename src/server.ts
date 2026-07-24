@@ -17,6 +17,8 @@ import { getDeviceInfo } from './device';
 import { getApps, launchApp } from './apps';
 import { captureScreenshot } from './screenshot';
 import { setupWebSocket } from './websocket';
+import { handleInput } from './input';
+import { VideoStreamer } from './video';
 import { apksDir, dataDir, getRoots, listDir, resolvePath, safeFileName, uploadsTmpDir } from './files';
 
 const PORT = parseInt(process.env.PORT || '2010', 10);
@@ -27,6 +29,7 @@ const termux = new TermuxBridge();
 const adb = new AdbProvider();
 const shizuku = new ShizukuProvider(termux);
 const bridge = new AndroidBridge(termux, adb, shizuku);
+const video = new VideoStreamer(adb);
 
 // ------------------------------------------------------------------- app ---
 const app = express();
@@ -71,6 +74,18 @@ app.post(
   ah(async (req, res) => {
     try {
       const r = await launchApp(bridge, req.params.package);
+      res.status(r.ok ? 200 : 502).json({ ok: r.ok, transport: r.transport, output: (r.stdout + ' ' + r.stderr).trim() });
+    } catch (e: any) {
+      res.status(400).json({ ok: false, error: e.message });
+    }
+  }),
+);
+
+app.post(
+  '/api/input',
+  ah(async (req, res) => {
+    try {
+      const r = await handleInput(bridge, req.body || {});
       res.status(r.ok ? 200 : 502).json({ ok: r.ok, transport: r.transport, output: (r.stdout + ' ' + r.stderr).trim() });
     } catch (e: any) {
       res.status(400).json({ ok: false, error: e.message });
@@ -233,7 +248,7 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
 // ---------------------------------------------------------------- start ----
 dataDir();
 const server = http.createServer(app);
-setupWebSocket(server, bridge);
+setupWebSocket(server, bridge, video);
 
 adb.ensureConnected().catch(() => undefined);
 

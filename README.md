@@ -33,8 +33,13 @@ Docker, no cloud.
 - **App manager** – list installed apps, search, **Launch** button.
   - `GET /api/apps` · `POST /api/apps/:package/launch`
 - **Device info** – `GET /api/device`
-- **Screen viewer** – `GET /api/screenshot` (PNG) + live streaming over
-  WebSocket (0.5–4 FPS).
+- **Live video + remote control** – real 60fps H.264 screen streaming
+  (`screenrecord` → WebSocket → JMuxer/MSE hardware decode, requires ADB) with
+  full interaction: tap, swipe, long-press, hardware keys (Back/Home/Recents/
+  Power/Volume), and keyboard text injection (`input` command, works via ADB
+  or Shizuku).
+- **Screen viewer (stills)** – `GET /api/screenshot` (PNG) + JPEG-less
+  WebSocket refresh up to hardware limit (works via Shizuku too).
 - **WebSockets** – `/ws` for status pushes, screenshot frames, future controls.
 - **File manager** – browse/download/upload user-accessible storage
   (panel data dir, `/sdcard`, Termux home).
