@@ -40,7 +40,7 @@ const adb = new AdbProvider();
 const shizuku = new ShizukuProvider(termux);
 const bridge = new AndroidBridge(termux, adb, shizuku);
 const video = new VideoStreamer(adb);
-const touch = new TouchController(adb, () => video.currentInfo);
+const touch = new TouchController(adb, termux, () => video.currentInfo);
 
 // ------------------------------------------------------------------- app ---
 const app = express();
