@@ -163,7 +163,8 @@ export class TouchController {
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, 'TouchAgent.java'), AGENT_JAVA);
 
-    let r = await this.termux.exec(`cd ${shq(dir)} && ecj -1.8 -d . TouchAgent.java`, 90000);
+    // Note: no compliance flags - Termux's ecj wrapper already sets its own.
+    let r = await this.termux.exec(`cd ${shq(dir)} && ecj -d . TouchAgent.java`, 90000);
     if (!r.ok) {
       throw new Error(
         `Compiling the touch agent failed - run: pkg install ecj dx\n${(r.stderr || r.stdout).slice(0, 300)}`,
