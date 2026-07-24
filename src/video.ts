@@ -180,7 +180,12 @@ export class VideoStreamer {
 
     proc.stdout?.on('data', (chunk: Buffer) => {
       for (const [ws] of this.viewers) {
-        if (ws.readyState === ws.OPEN) ws.send(chunk);
+        if (ws.readyState !== ws.OPEN) continue;
+        // If this client's socket is backed up, DROP the frame instead of
+        // queueing it - queued frames become permanent latency. The stream
+        // recovers cleanly at the next keyframe.
+        if (ws.bufferedAmount > 8 * 1024 * 1024) continue;
+        ws.send(chunk);
       }
     });
 

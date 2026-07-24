@@ -358,10 +358,28 @@ function startVideo() {
   $('#video-stop').disabled = false;
   $('#video-status').textContent = 'starting stream…';
   subscribeVideo();
+
+  // Live-edge watchdog: MSE plays buffered media at 1x, so any backlog
+  // becomes permanent lag. If we fall >0.6s behind, jump to the live edge.
+  if (state.video.edgeTimer) clearInterval(state.video.edgeTimer);
+  state.video.edgeTimer = setInterval(() => {
+    const v = $('#video-el');
+    if (!state.video.live || !v.buffered || v.buffered.length === 0) return;
+    try {
+      const end = v.buffered.end(v.buffered.length - 1);
+      if (end - v.currentTime > 0.6) {
+        v.currentTime = Math.max(0, end - 0.1);
+      }
+    } catch { /* ignore */ }
+  }, 500);
 }
 
 function stopVideo() {
   state.video.live = false;
+  if (state.video.edgeTimer) {
+    clearInterval(state.video.edgeTimer);
+    state.video.edgeTimer = null;
+  }
   if (state.ws && state.wsOk) state.ws.send(JSON.stringify({ type: 'unsubscribe-video' }));
   if (jmuxer && typeof jmuxer.destroy === 'function') {
     try { jmuxer.destroy(); } catch { /* ignore */ }
