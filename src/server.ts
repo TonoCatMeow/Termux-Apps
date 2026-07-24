@@ -28,6 +28,7 @@ import {
 } from './auth';
 import { handleInput } from './input';
 import { VideoStreamer } from './video';
+import { TouchController } from './touch';
 import { apksDir, dataDir, getRoots, listDir, resolvePath, safeFileName, uploadsTmpDir } from './files';
 
 const PORT = parseInt(process.env.PORT || '2010', 10);
@@ -39,6 +40,7 @@ const adb = new AdbProvider();
 const shizuku = new ShizukuProvider(termux);
 const bridge = new AndroidBridge(termux, adb, shizuku);
 const video = new VideoStreamer(adb);
+const touch = new TouchController(adb, () => video.currentInfo);
 
 // ------------------------------------------------------------------- app ---
 const app = express();
@@ -295,7 +297,7 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
 // ---------------------------------------------------------------- start ----
 dataDir();
 const server = http.createServer(app);
-setupWebSocket(server, bridge, video);
+setupWebSocket(server, bridge, video, touch);
 
 adb.ensureConnected().catch(() => undefined);
 

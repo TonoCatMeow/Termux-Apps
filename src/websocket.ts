@@ -7,6 +7,7 @@ import { getDeviceInfo } from './device';
 import { captureScreenshot } from './screenshot';
 import { handleInput } from './input';
 import { VideoStreamer } from './video';
+import { TouchController } from './touch';
 import { parseCookieHeader, verifyToken, SESSION_COOKIE } from './auth';
 
 function send(ws: WebSocket, msg: object): void {
@@ -17,6 +18,7 @@ export function setupWebSocket(
   server: http.Server,
   bridge: AndroidBridge,
   video: VideoStreamer,
+  touch: TouchController,
 ): WebSocketServer {
   const wss = new WebSocketServer({ server, path: '/ws' });
   const clients = new Set<WebSocket>();
@@ -36,6 +38,7 @@ export function setupWebSocket(
     const notify = (msg: object) => send(ws, msg);
     let screenTimer: NodeJS.Timeout | null = null;
     let screenLoop = false;
+    let touchErrSent = false;
 
     const stopScreen = () => {
       screenLoop = false;
@@ -90,6 +93,19 @@ export function setupWebSocket(
         if (video.currentInfo) send(ws, { type: 'video-info', ...video.currentInfo });
       } else if (msg.type === 'unsubscribe-video') {
         video.removeViewer(ws);
+      } else if (msg.type === 'touch') {
+        // Raw pointer stream: down/move/up straight into the touch driver.
+        touch
+          .handle(String(msg.action || ''), Number(msg.nx), Number(msg.ny))
+          .then(() => {
+            touchErrSent = false;
+          })
+          .catch(e => {
+            if (!touchErrSent) {
+              touchErrSent = true;
+              send(ws, { type: 'input-result', ok: false, error: e.message });
+            }
+          });
       } else if (msg.type === 'input') {
         handleInput(bridge, msg)
           .then(r => send(ws, { type: 'input-result', ok: r.ok, error: r.ok ? undefined : (r.stderr || 'input failed').trim() }))
@@ -110,6 +126,7 @@ export function setupWebSocket(
       clients.delete(ws);
       stopScreen();
       video.removeViewer(ws);
+      touch.forceUp();
     });
 
     send(ws, { type: 'hello', at: Date.now() });

@@ -388,6 +388,11 @@ function sendInput(msg) {
   state.ws.send(JSON.stringify({ type: 'input', ...msg }));
 }
 
+function sendTouch(action, p) {
+  if (!state.wsOk) return;
+  state.ws.send(JSON.stringify({ type: 'touch', action, nx: p.x, ny: p.y }));
+}
+
 // Map a pointer event to normalized coordinates over the ACTUAL video
 // picture. In maximize mode the <video> element fills the window and the
 // picture is letterboxed inside it (object-fit: contain), so we must use
@@ -417,93 +422,57 @@ function relPoint(e, el) {
   return { x, y };
 }
 
-function toDevice(p) {
-  const info = state.video.info;
-  if (!info) return { x: Math.round(p.x * 1080), y: Math.round(p.y * 2400) };
-  // `input tap/swipe` uses the CURRENT (rotated) display coordinate space,
-  // and the video shows exactly that same frame - so just scale to the
-  // current display size (swapped in landscape). No rotation math needed.
-  const landscape = (info.orientation || 0) === 1 || info.orientation === 3;
-  const W = landscape ? info.deviceHeight : info.deviceWidth;
-  const H = landscape ? info.deviceWidth : info.deviceHeight;
-  return { x: Math.round(p.x * W), y: Math.round(p.y * H) };
-}
-
+// Raw pointer streaming: we send ONLY where the pointer is and whether it
+// is down. The phone's own input pipeline decides tap vs swipe vs fling vs
+// long-press - exactly like a real finger on the screen.
 (function setupVideoPointer() {
   const el = $('#video-el');
-  const SLOP = 0.02;          // normalized movement that counts as a drag
-  const HOLD_MS = 300;        // press-and-stay this long => finger goes DOWN
-  let start = null;           // { p, t }
-  let holdTimer = null;
-  let holding = false;
-
-  function cancelHoldTimer() {
-    if (holdTimer) clearTimeout(holdTimer);
-    holdTimer = null;
-  }
+  const MOVE_INTERVAL = 33;   // ~30 move events/sec
+  let active = false;
+  let lastMove = 0;
+  let pending = null;         // latest throttled move point
+  let lastPoint = null;
 
   el.addEventListener('pointerdown', e => {
     if (!state.video.live) return;
     e.preventDefault();
     const p = relPoint(e, el);
-    if (!p) { start = null; return; }   // touched a letterbox bar
-    start = { p, t: Date.now() };
-    holding = false;
+    if (!p) return;                       // letterbox bar
+    active = true;
+    lastPoint = p;
+    pending = null;
     try { el.setPointerCapture(e.pointerId); } catch { /* ignore */ }
-
-    // If the finger stays put, press DOWN on the device and keep holding
-    // until pointerup - a real hold, not a post-hoc long swipe.
-    holdTimer = setTimeout(() => {
-      if (!start) return;
-      holding = true;
-      const a = toDevice(start.p);
-      sendInput({ action: 'hold-start', x: a.x, y: a.y });
-    }, HOLD_MS);
+    sendTouch('down', p);
   });
 
   el.addEventListener('pointermove', e => {
-    if (!start || holding) return;
-    const cur = relPoint(e, el);
-    if (cur && Math.hypot(cur.x - start.p.x, cur.y - start.p.y) > SLOP) {
-      cancelHoldTimer();   // it's a swipe, not a hold
-    }
-  });
-
-  el.addEventListener('pointerup', e => {
-    cancelHoldTimer();
-    if (!start || !state.video.live) { holding = false; return; }
+    if (!active) return;
     e.preventDefault();
-
-    if (holding) {
-      holding = false;
-      start = null;
-      sendInput({ action: 'hold-end' });   // lift the finger
+    const p = relPoint(e, el);
+    if (!p) return;
+    lastPoint = p;
+    const now = performance.now();
+    if (now - lastMove < MOVE_INTERVAL) {
+      pending = p;
       return;
     }
-
-    const end = relPoint(e, el) || start.p;
-    const dist = Math.hypot(end.x - start.p.x, end.y - start.p.y);
-    const a = toDevice(start.p);
-
-    if (dist < SLOP) {
-      sendInput({ action: 'tap', x: a.x, y: a.y });
-    } else {
-      const b = toDevice(end);
-      // Fixed short duration = fast fling. Using the real drag time makes
-      // Android perform a slow crawl that barely scrolls anything.
-      sendInput({ action: 'swipe', x1: a.x, y1: a.y, x2: b.x, y2: b.y, duration: 250 });
-    }
-    start = null;
+    lastMove = now;
+    pending = null;
+    sendTouch('move', p);
   });
 
-  el.addEventListener('pointercancel', () => {
-    cancelHoldTimer();
-    if (holding) {
-      holding = false;
-      sendInput({ action: 'hold-end' });
-    }
-    start = null;
-  });
+  function release(e) {
+    if (!active) return;
+    if (e) e.preventDefault();
+    active = false;
+    const p = pending || lastPoint;
+    pending = null;
+    if (p) sendTouch('up', p);
+    else sendTouch('up', { x: 0.5, y: 0.5 });
+  }
+
+  el.addEventListener('pointerup', release);
+  el.addEventListener('pointercancel', () => release(null));
   el.addEventListener('contextmenu', e => e.preventDefault());
 })();
 
