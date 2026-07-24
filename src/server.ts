@@ -305,8 +305,8 @@ server.listen(PORT, HOST, () => {
   console.log(`Android Control Panel listening on http://${HOST}:${PORT}`);
   console.log(`Frontend directory: ${frontendDir}`);
   console.log(`Data directory:     ${dataDir()}`);
-  if (!process.env.PANEL_PASSWORD) {
-    console.log('Login password: "malo" (default) - set PANEL_PASSWORD to change it.');
+  if (!process.env.PANEL_PASSWORD && !process.env.PANEL_PASSWORD_HASH) {
+    console.log('Login: using built-in default password - set PANEL_PASSWORD to change it.');
   }
   if (!process.env.ADB_SERIAL) {
     console.log('Hint: set ADB_SERIAL=127.0.0.1:<wireless-debugging-port> to enable adb.');

@@ -1,13 +1,24 @@
 // Simple local authentication: password login + HMAC-signed session cookie.
 //
-// PANEL_PASSWORD  - login password (default: "malo")
-// PANEL_SECRET    - HMAC secret; random per process start if unset, which
-//                   simply invalidates all sessions on restart.
+// The password is NEVER stored in plain text in this repo - only its
+// SHA-256 hash. Set your own with either:
+//   PANEL_PASSWORD       - plain password (hashed at runtime, never stored)
+//   PANEL_PASSWORD_HASH  - pre-computed sha256 hex of your password
+// PANEL_SECRET           - HMAC secret; random per start if unset (which
+//                          simply invalidates all sessions on restart).
 
 import crypto from 'crypto';
 import { NextFunction, Request, Response } from 'express';
 
-const PASSWORD = process.env.PANEL_PASSWORD || 'malo';
+const DEFAULT_PASSWORD_HASH =
+  '85b42e1702877c851eb7412fe958c8fb447c3207b4798fadab42ea8539046ce1';
+
+const PASSWORD_HASH = (
+  process.env.PANEL_PASSWORD_HASH ||
+  (process.env.PANEL_PASSWORD
+    ? crypto.createHash('sha256').update(process.env.PANEL_PASSWORD).digest('hex')
+    : DEFAULT_PASSWORD_HASH)
+).toLowerCase();
 const SECRET = process.env.PANEL_SECRET || crypto.randomBytes(32).toString('hex');
 const TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 
@@ -42,8 +53,9 @@ export function verifyToken(token?: string | null): boolean {
 }
 
 export function checkPassword(pw: unknown): boolean {
-  const a = Buffer.from(String(pw ?? ''));
-  const b = Buffer.from(PASSWORD);
+  const submitted = crypto.createHash('sha256').update(String(pw ?? '')).digest('hex');
+  const a = Buffer.from(submitted);
+  const b = Buffer.from(PASSWORD_HASH);
   return a.length === b.length && a.length > 0 && crypto.timingSafeEqual(a, b);
 }
 
