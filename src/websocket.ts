@@ -14,9 +14,19 @@ export function setupWebSocket(server: http.Server, bridge: AndroidBridge): WebS
   const wss = new WebSocketServer({ server, path: '/ws' });
   const clients = new Set<WebSocket>();
 
+  // Max allowed frame rate. SCREEN_MAX_FPS = "as fast as screencap can go".
+  const MAX_FPS = Math.min(Math.max(Number(process.env.SCREEN_MAX_FPS) || 30, 1), 30);
+
   wss.on('connection', ws => {
     clients.add(ws);
     let screenTimer: NodeJS.Timeout | null = null;
+    let screenLoop = false;
+
+    const stopScreen = () => {
+      screenLoop = false;
+      if (screenTimer) clearInterval(screenTimer);
+      screenTimer = null;
+    };
 
     ws.on('message', raw => {
       let msg: any;
@@ -27,23 +37,38 @@ export function setupWebSocket(server: http.Server, bridge: AndroidBridge): WebS
       }
 
       if (msg.type === 'subscribe-screen') {
-        const fps = Math.min(Math.max(Number(msg.fps) || 1, 0.2), 5);
-        if (screenTimer) clearInterval(screenTimer);
-        let busy = false;
-        screenTimer = setInterval(async () => {
-          if (busy || ws.readyState !== ws.OPEN) return;
-          busy = true;
+        const fps = Math.min(Math.max(Number(msg.fps) || 1, 0.2), MAX_FPS);
+        stopScreen();
+
+        const capture = async (): Promise<void> => {
           try {
             const buf = await captureScreenshot(bridge);
             send(ws, { type: 'screenshot', data: buf.toString('base64'), at: Date.now() });
           } catch (e: any) {
             send(ws, { type: 'screenshot-error', error: e.message || 'screenshot failed' });
           }
-          busy = false;
-        }, Math.round(1000 / fps));
+        };
+
+        if (fps >= MAX_FPS) {
+          // "max" mode: no delay - send the next frame the moment the
+          // previous capture finishes. Self-throttles to hardware speed.
+          screenLoop = true;
+          (async () => {
+            while (screenLoop && ws.readyState === ws.OPEN) {
+              await capture();
+            }
+          })();
+        } else {
+          let busy = false;
+          screenTimer = setInterval(async () => {
+            if (busy || ws.readyState !== ws.OPEN) return;
+            busy = true;
+            await capture();
+            busy = false;
+          }, Math.round(1000 / fps));
+        }
       } else if (msg.type === 'unsubscribe-screen') {
-        if (screenTimer) clearInterval(screenTimer);
-        screenTimer = null;
+        stopScreen();
       } else if (msg.type === 'refresh-status') {
         pushStatus().catch(() => undefined);
       } else if (msg.type === 'ping') {
@@ -53,7 +78,7 @@ export function setupWebSocket(server: http.Server, bridge: AndroidBridge): WebS
 
     ws.on('close', () => {
       clients.delete(ws);
-      if (screenTimer) clearInterval(screenTimer);
+      stopScreen();
     });
 
     send(ws, { type: 'hello', at: Date.now() });
