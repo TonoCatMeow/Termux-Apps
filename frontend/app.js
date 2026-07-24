@@ -425,7 +425,9 @@ function toDevice(p) {
       }
     } else {
       const b = toDevice(end);
-      sendInput({ action: 'swipe', x1: a.x, y1: a.y, x2: b.x, y2: b.y, duration: Math.max(dt, 100) });
+      // Fixed short duration = fast fling. Using the real drag time makes
+      // Android perform a slow crawl that barely scrolls anything.
+      sendInput({ action: 'swipe', x1: a.x, y1: a.y, x2: b.x, y2: b.y, duration: 250 });
     }
     start = null;
   });
